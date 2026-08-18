@@ -1,0 +1,1649 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+<title>MY SUSANS v0.7.10 — PLIP</title>
+<style>
+:root {
+    --panel-w: 480px;
+    /* app chrome (ゲーム画面まわり) の配色。ライトモードは body[data-theme="light"] で上書きする。
+       紙パネル (#panel) 系はテーマ非依存で常に紙。ゲーム canvas のピクセルは drawImage 由来で不変で、
+       ここで変わるのは letterbox 余白・枠・入力バーだけ。 */
+    --app-bg: #111; --app-fg: #ccc;
+    --canvas-bg: #000; --screen-outline: #333;
+    --inputbar-bg: #161616; --inputbar-border: #333;
+    --iconbtn-bg: #2a2a2a; --iconbtn-fg: #ddd; --iconbtn-border: #555; --iconbtn-bg-hover: #333;
+}
+/* ライトモード (Appearance)。ゲーム画面まわり・入力バーだけ白系にする。ゲーム canvas のピクセルは
+   drawImage 由来で不変。紙パネル (#panel) は常に紙なのでテーマ非依存。data-theme は head の先読みと
+   applyTheme が <html> (documentElement) に付ける。 */
+:root[data-theme="light"] {
+    --app-bg: #f4f1ea; --app-fg: #3a352c;
+    --canvas-bg: #e9e4d8; --screen-outline: #c8c0ae;
+    --inputbar-bg: #efeadd; --inputbar-border: #d8d1c0;
+    --iconbtn-bg: #fbf9f3; --iconbtn-fg: #5a5344; --iconbtn-border: #c8c0ae; --iconbtn-bg-hover: #e9e3d3;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+    background: var(--app-bg); color: var(--app-fg);
+    font-family: ui-monospace, "DejaVu Sans Mono", monospace;
+    font-size: 13px;
+    overflow: hidden;
+}
+
+/* モバイルのアドレスバー対策: 100vh は「アドレスバーが隠れた最大ビューポート」を指し、表示中は
+   可視領域より高くなって下部ツールバーがはみ出す。dvh (動的ビューポート高) は可視領域に追従する。
+   100vh は dvh 非対応の古いブラウザ向けフォールバック。 */
+#app { display: flex; height: 100vh; height: 100dvh; width: 100%; }
+
+/* 左: ゲーム画面のみ */
+#stage { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+#canvas-wrap {
+    position: relative;
+    flex: 1 1 auto; min-height: 0;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; background: var(--canvas-bg);
+}
+#screen { outline: 1px solid var(--screen-outline); image-rendering: pixelated; display: block; cursor: crosshair; }
+#screen.captured { cursor: none; outline: 1px solid #6af; }
+#canvas-wrap.dragover { box-shadow: inset 0 0 0 2px #6af; }
+
+/* 下部の入力ツールバー (テキスト入力 / 将来: ソフトキーボード・バーチャルパッド)。
+ * #stage の通常フロー要素なので canvas-wrap が縮み、ゲーム画面の上マージンが自然に減る。 */
+#input-bar {
+    flex: 0 0 auto; display: flex; gap: 6px; align-items: center;
+    padding: 5px 8px; background: var(--inputbar-bg); border-top: 1px solid var(--inputbar-border);
+}
+#ime-toggle, #fep-toggle {
+    flex: 0 0 auto; width: 34px; height: 30px; cursor: pointer; line-height: 1;
+    background: var(--iconbtn-bg); color: var(--iconbtn-fg); border: 1px solid var(--iconbtn-border); border-radius: 5px; font-size: 17px;
+}
+#ime-toggle:hover, #fep-toggle:hover { background: var(--iconbtn-bg-hover); }
+#ime-toggle.on, #fep-toggle.on { background: #1d5e1d; border-color: #2f7d2f; color: #fff; }
+#fep-toggle { font-size: 15px; }
+
+/* 大物アセット取得の進捗トースト (FEP 辞書 ~19MB / MIDI soundfont ~32MB)。run-status の
+ * 小さい文字だと見落とすので、ゲーム画面の上に重ねて大きめに出す (取得中のみ)。 */
+#progress-toast {
+    position: absolute; left: 50%; bottom: 14%; transform: translateX(-50%);
+    min-width: 300px; max-width: 82%; padding: 10px 16px; z-index: 30;
+    background: rgba(24, 21, 16, .9); color: #f0ead8;
+    border: 1px solid rgba(240, 234, 216, .28); border-radius: 8px;
+    font-size: 14px; text-align: center;
+}
+#pt-track { margin-top: 8px; height: 6px; background: rgba(240, 234, 216, .18); border-radius: 3px; overflow: hidden; }
+#pt-fill  { height: 100%; width: 0; background: #b5d67e; border-radius: 3px; transition: width .15s linear; }
+#ime-input {
+    flex: 1 1 auto; min-width: 0; height: 30px; display: none; box-sizing: border-box;
+    background: #000; color: #3f3; border: 1px solid #333; border-radius: 4px;
+    padding: 0 8px; font: 15px ui-monospace, "DejaVu Sans Mono", monospace;
+}
+#ime-input.show { display: block; }
+
+/* 仕切り + 取っ手 (ゲーム画面の最大化⇄復帰)。最大化中も仕切りは右端に細く残り、
+ * 取っ手が両状態で同じ物理位置に居続ける = 「戻すボタン」が行方不明にならない。
+ * 旧 ▦ Panel オーバーレイ (canvas 右上) は「見えるほど邪魔・控えめだと不可視」の
+ * ジレンマがあり廃止。 */
+#divider { flex: 0 0 6px; cursor: col-resize; background: #cfc8b9; position: relative; }
+#divider:hover { background: #9db7d6; }
+body.panel-hidden #panel { display: none; }
+body.panel-hidden #divider { cursor: default; }
+body.panel-hidden #divider:hover { background: #cfc8b9; }
+#stage-max {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 16px; height: 56px; padding: 0; z-index: 20;
+    background: #ece6d8; color: #5a5344; border: 1px solid #b3ab97; border-radius: 4px;
+    font: inherit; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+#stage-max:hover { background: #9db7d6; border-color: #7a96b5; color: #fff; }
+#stage-max::before { content: "▸"; }                    /* パネルが右へ畳まれる方向 */
+body.panel-hidden #stage-max::before { content: "◂"; }  /* パネルが左へ戻ってくる方向 */
+
+/* 右: filer (ヘッダ → 一覧 → Run バー → テキスト)
+ * 配色 = 明るい紙系。ゲーム画面 (左・黒) と意図的にコントラストを付ける:
+ * 左は「当時の画面」、右は「現代の文化事業の窓口」(concept.md の配色方針)。 */
+#panel {
+    flex: 0 0 var(--panel-w); min-width: 280px; max-width: 72vw;
+    display: flex; flex-direction: column; min-height: 0;
+    background: #f7f4ec; color: #3a352c; font-size: 14px;
+    border-left: 1px solid #d8d1c0;
+}
+#panel.dragover { box-shadow: inset 0 0 0 2px #4a8fd4; }
+
+#panel-head {
+    flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 6px 10px; background: #ece6d8; border-bottom: 1px solid #d8d1c0;
+}
+/* 左 = 環境の開閉 (空: Open / ロード済: × 書庫名)。右端 = ファイル入出力 (＋Add)。
+ * 「左 = 環境を開く/閉じる、右端 = ファイルの読み書き」の空間対応をビューアヘッダ
+ * (View=左 / Save=右端) とも揃え、誤クリックと迷いを減らす。 */
+.ph-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 0 1 auto; }
+.ph-right { flex: 0 0 auto; }
+/* 書庫名は表示専用 (タップ不可) なので、リンクと誤認させない無彩色寄りの題字に */
+#arc-name { color: #5a5344; font-weight: bold;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#panel-head button {
+    background: #fbf9f3; color: #5a5344; border: 1px solid #c8c0ae; border-radius: 3px;
+    padding: 1px 8px; font: inherit; cursor: pointer; margin-left: 4px;
+}
+#panel-head button:hover { background: #e9e3d3; color: #3a352c; }
+
+/* パンくず (現代的なフォルダ移動。サブディレクトリが無いときは隠す) */
+#crumbs {
+    flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 3px;
+    padding: 4px 10px; background: #f1ecdf; border-bottom: 1px solid #ddd6c6;
+    font-size: 12px; color: #8a8270;
+}
+#crumbs[hidden] { display: none; }
+#crumbs .seg { cursor: pointer; color: #176bb3; }
+#crumbs .seg:hover { text-decoration: underline; }
+#crumbs .seg.here { color: #3a352c; cursor: default; text-decoration: none; }
+#crumbs .sep { color: #b3ab97; }
+
+#file-list { flex: 1 1 45%; min-height: 60px; overflow: auto; }
+.frow {
+    display: flex; align-items: baseline; gap: 10px;
+    padding: 3px 10px; cursor: pointer; white-space: nowrap;
+    border-bottom: 1px solid #eee8da;
+}
+.frow:hover { background: #efeadd; }
+.frow.sel { background: #e2ecf7; }                 /* いまタップ/表示中の行 (中立な青系) */
+/* ▶ Run の実行対象はアイコンチップで示す (Run ボタンと同系の緑 = 「Run で走るのはこれ」) */
+.frow.armed .fi { background: #2f6614; color: #fff; border-radius: 3px; }
+/* 種別アイコン専用カラム。固定幅+中央寄せで、グリフ幅の個体差が行頭を揺らさない。
+ * 種別色は行 (.frow) に置き、アイコンと名前の両方に乗せる (サイズ/日時列は固有色で不変)。 */
+.frow .fi  { flex: 0 0 1.4em; text-align: center; }
+.frow .fn  { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.frow.dir  { color: #a96a14; }
+.frow.exec { color: #2f7d1f; }
+.frow.bat  { color: #9c6d00; }         /* 起動レシピ — 金茶の種別色のみで示す (太字は他種別と不揃い) */
+.frow.text { color: #176bb3; }
+.frow .fsz { flex: 0 0 auto; color: #97907e; min-width: 56px;  text-align: right; }
+.frow .fdt { flex: 0 0 auto; color: #97907e; min-width: 138px; text-align: right; }
+
+/* Run バー: 一覧とテキストの間。1 行目=Entry/Args/ボタン、2 行目=メッセージ */
+#run-bar {
+    flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px;
+    padding: 6px 10px; background: #f1ecdf;
+    border-top: 1px solid #ddd6c6; border-bottom: 1px solid #ddd6c6;
+}
+.rb-line1 { display: flex; align-items: center; gap: 10px; }
+/* Entry 名は長くても省略 (…) し、Run/Stop ボタンを絶対に押し出さない */
+.rb-field { flex: 0 1 auto; min-width: 0; color: #6b6354;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rb-field b { color: #2f7d1f; font-weight: normal; }
+.rb-args { flex: 1 1 auto; min-width: 80px; display: flex; align-items: center; gap: 4px; color: #6b6354; }
+#run-cmdline {
+    flex: 1 1 auto; width: auto; min-width: 60px;
+    background: #fff; color: #3a352c; border: 1px solid #c8c0ae;
+    border-radius: 3px; padding: 2px 6px; font: inherit;
+}
+.rb-right { flex: 0 0 auto; display: inline-flex; gap: 6px; margin-left: auto; }
+#run-button, #stop-button {
+    border-radius: 3px; padding: 2px 12px; font: inherit; cursor: pointer;
+    background: #e3f0cf; color: #2f6614; border: 1px solid #8fb964;
+}
+#run-button:hover, #stop-button:hover { background: #d4e7b7; }
+#run-button:disabled { opacity: .45; cursor: default; }
+#stop-button { background: #fbe3df; color: #b3261e; border-color: #dca39b; }
+#stop-button:hover { background: #f5d3cd; }
+#stop-button[hidden] { display: none; }
+#run-status { min-height: 17px; color: #6b6354; font-size: 12px; }  /* 2 行目固定 (空でも高さ確保) */
+
+/* テキストビュー */
+#text-view {
+    flex: 1 1 55%; min-height: 60px; display: flex; flex-direction: column;
+}
+/* 何も開いていない間 (歓迎文表示中) はヘッダ帯ごと出さない */
+#text-head[hidden] { display: none; }
+#text-head {
+    flex: 0 0 auto; padding: 3px 6px; background: #ece6d8; color: #5a5344;
+    border-bottom: 1px solid #d8d1c0;
+    display: flex; align-items: center; gap: 6px;
+}
+#text-head-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* View = 別窓ポップアップ (ファイル名の直後 — 名前を読んだ視線の先に置いて気づきやすく) /
+   Save = ダウンロード保存 (ヘッダ右端、ASCII 8.3 名のみ有効 — ＋Add 読み戻しとの対称性)。
+   View/Save を隣接させると誤クリックするので、Save は margin で右端へ分離し
+   「右端 = ファイルの読み書き」をファイラヘッダの ＋Add と揃える。 */
+#text-popout, #text-save {
+    flex: 0 0 auto; background: #fbf9f3; color: #176bb3; border: 1px solid #c8c0ae;
+    border-radius: 3px; padding: 1px 7px; font: inherit;
+    cursor: pointer; opacity: .8;
+}
+#text-popout:hover, #text-save:hover:enabled { opacity: 1; background: #e9e3d3; }
+#text-save { margin-left: auto; }
+#text-save:disabled { opacity: .35; cursor: default; }
+/* 歓迎文内の「宣言を読む」リンク (初回自動表示後の再表示入口) */
+#text-body .about-link { color: #176bb3; cursor: pointer; text-decoration: underline; }
+#text-body .about-link:hover { background: #e2ecf7; }
+#text-body a { color: #176bb3; text-decoration: underline; }   /* CREDITS.md など実リンクも紙ブルーに揃える */
+#text-body {
+    flex: 1 1 auto; overflow: auto; padding: 8px 10px;
+    /* 等幅 + CJK 対応 (AA・かな・標準罫線を崩さない)。インラインは「紙」で読みやすく、
+       実機風 (黒地・行間ゼロ) は ⛶ 拡大ポップアップが担う */
+    font-family: "Noto Sans Mono CJK JP", "Noto Sans CJK JP", "Migu 1M",
+                 "MS Gothic", "Osaka-Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+    white-space: pre; tab-size: 8; background: #fffdf6; color: #33302a; line-height: 1.35;
+}
+/* .MAG 等の画像プレビュー (テキスト面と排他表示)。アスペクト保持・ピクセル等倍。 */
+#text-image {
+    flex: 1 1 auto; min-height: 0; width: 100%;
+    object-fit: contain; image-rendering: pixelated; background: #000;
+}
+#text-image[hidden], #viewer-canvas[hidden] { display: none; }
+
+/* 別窓ビューア — readme/テキストを大きく読む (.MAG 画像も同じモーダルで大きく見る) */
+#viewer-modal {
+    /* 暗幕はごく薄く + 背景ぼかしで分離 (濃い暗幕はポップアップが埋没する)。
+     * 黒いゲーム画面側ではドロップシャドウが効かないため、box の境界線で輪郭を出す。 */
+    position: fixed; inset: 0; z-index: 100; background: rgba(20, 16, 8, .2);
+    backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
+}
+#viewer-modal[hidden] { display: none; }
+#viewer-box {
+    display: flex; flex-direction: column; width: min(900px, 92vw); height: min(80dvh, 100%);
+    background: #161616; border: 1px solid #5b7390; border-radius: 5px;
+    box-shadow: 0 12px 48px rgba(0,0,0,.55); overflow: hidden;
+}
+#viewer-head {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px;
+    padding: 5px 6px 5px 12px; background: #1c1c1c; color: #9cf;
+    font-size: 14px; border-bottom: 1px solid #2a2a2a;
+}
+#viewer-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#viewer-close {
+    flex: 0 0 auto; background: #222; color: #9bd; border: 1px solid #456;
+    border-radius: 3px; padding: 1px 8px; font: inherit; cursor: pointer;
+}
+#viewer-close:hover { background: #344; }
+#viewer-body {
+    flex: 1 1 auto; overflow: auto; margin: 0; padding: 12px 14px;
+    font-family: "Noto Sans Mono CJK JP", "Noto Sans CJK JP", "Migu 1M",
+                 "MS Gothic", "Osaka-Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+    /* 実機 (PC-98 25行モード) は行間ゼロ = 罫線/アスキーアートが縦に繋がる。
+     * 文字は実機より大きめ (18px) で読みやすく。80 桁 ≒ 720px が箱に収まる。 */
+    white-space: pre; tab-size: 8; color: #cdc8c0; line-height: 1.0; font-size: 18px;
+}
+/* 宣言 (About) 表示用 — 当時のテキストではなく現代の散文なので、実機の模倣
+ * (黒地・行間ゼロ) はせず、サイドバーと同じ「紙」の配色 + 読書向けの行間にする */
+#viewer-body.prose {
+    line-height: 1.6; font-size: 16px;
+    background: #fffdf6; color: #33302a;
+}
+#viewer-body.prose a { color: #176bb3; }
+/* VZ Editor 慣習の %X タグ (目次⇔本文の手作りリンク)。クリックで次の同タグへジャンプ */
+#viewer-body .viewer-tag {
+    color: #8ec7ff; text-decoration: underline; cursor: pointer; scroll-margin-top: 12px;
+}
+#viewer-body .viewer-tag:hover { color: #d6ecff; background: #234; }
+/* ライトモード時のプレビューポップアップ (別窓ビューア) — 既定は実機風ダークだが、ライトでは .M ダイアログ
+   (#player-box) と同じ紙トーンに揃える。色だけ差し替え、文字サイズ・行間は据え置き (実機風の行間ゼロも維持)。
+   prose (About) は元から紙なので不変。ダークモードは一切変えない (ゼロ回帰)。 */
+:root[data-theme="light"] #viewer-box { background: #fffdf6; border-color: #c8c0ae; }
+:root[data-theme="light"] #viewer-head { background: #ece6d8; color: #5a5344; border-bottom-color: #d8d1c0; }
+:root[data-theme="light"] #viewer-close { background: #fbf9f3; color: #5a5344; border-color: #c8c0ae; }
+:root[data-theme="light"] #viewer-close:hover { background: #e9e3d3; }
+:root[data-theme="light"] #viewer-body { background: #fffdf6; color: #33302a; }
+:root[data-theme="light"] #viewer-body .viewer-tag { color: #176bb3; }
+:root[data-theme="light"] #viewer-body .viewer-tag:hover { color: #0d4f8a; background: #e2ecf7; }
+#viewer-body .viewer-tag-hit { animation: viewer-tag-hit 1.2s ease-out; }
+@keyframes viewer-tag-hit {
+    0%   { background: #58a; color: #fff; }
+    100% { background: transparent; }
+}
+#viewer-canvas {
+    flex: 1 1 auto; min-height: 0; width: 100%;
+    object-fit: contain; image-rendering: pixelated; background: #000;
+}
+
+/* PMD .M タップ時の ▶ Play (Run と同系の緑。名前の直後に置く) */
+#text-play {
+    flex: 0 0 auto; background: #e8f0d8; color: #3d5a1e; border: 1px solid #b9c79a;
+    border-radius: 3px; padding: 1px 9px; font: inherit; cursor: pointer; opacity: .92;
+}
+#text-play:hover { opacity: 1; background: #d8e8c0; }
+
+/* 音楽プレイヤーポップアップ — 現代の「紙」系クリーンカード。
+   背後の暗幕は他のポップアップ (テキスト/MAG = #viewer-modal) と揃える。PMD86 の自己診断
+   バナーは EXEC 後に ESC[2J で消す (= 背後はクリア済みの黒画面) ので薄い暗幕で十分。 */
+#player-modal {
+    position: fixed; inset: 0; z-index: 110; background: rgba(20, 16, 8, .2);
+    backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
+}
+#player-modal[hidden] { display: none; }
+#player-box {
+    position: relative; width: min(480px, 92vw);
+    background: #fffdf6; color: #33302a; border: 1px solid #c8c0ae;
+    border-radius: 8px; box-shadow: 0 16px 56px rgba(0,0,0,.55);
+    padding: 20px 24px 16px;
+    font-family: "Noto Sans CJK JP", "Migu 1M", system-ui, sans-serif;
+}
+#player-close {
+    position: absolute; top: 8px; right: 10px; background: transparent; color: #8a8377;
+    border: none; font-size: 18px; cursor: pointer; line-height: 1; padding: 2px 6px;
+}
+#player-close:hover { color: #b3261e; }
+#player-now { font-size: 13px; color: #9a8f5e; letter-spacing: .04em; margin-bottom: 12px; }
+#player-info { margin-bottom: 16px; }
+#player-info .prow {
+    display: flex; gap: 10px; align-items: baseline; padding: 3px 0; border-top: 1px solid #efe9da;
+}
+#player-info .prow:first-child { border-top: none; }
+#player-info .plabel {
+    flex: 0 0 78px; font-size: 11px; color: #9a948a;
+    text-transform: uppercase; letter-spacing: .03em; text-align: right;
+}
+#player-info .pval { flex: 1 1 auto; font-size: 14px; word-break: break-word; white-space: pre-wrap; min-height: 1.2em; }
+#player-info .pval-title { font-size: 17px; font-weight: 700; }
+/* 演奏経過時間 (曲は無限ループするので総尺は出さず、ラジオのように経過だけを刻む) */
+#player-time {
+    text-align: center; font-size: 22px; color: #5a5347; margin-bottom: 10px;
+    font-variant-numeric: tabular-nums; letter-spacing: .02em;
+}
+#player-controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 12px; }
+#player-controls button {
+    font: inherit; font-size: 15px; padding: 6px 16px; border-radius: 5px;
+    border: 1px solid #c8c0ae; background: #e8f0d8; color: #3d5a1e; cursor: pointer;
+}
+#player-play:hover:enabled, #player-pause:hover:enabled { background: #d8e8c0; }
+#player-stop { background: #fbe3df; color: #b3261e; border-color: #dca39b; }
+#player-stop:hover:enabled { background: #f5d3cd; }
+#player-controls button:disabled { opacity: .4; cursor: default; }
+#player-driver { font-size: 11px; color: #9a948a; text-align: center; }
+
+/* 設定コントロールパネル — #player-modal と同じ紙トーンのクリーンカード。ゲーム設定 (qbDebug の厳選) を
+   コンソール無しで触る。ラベルは英語+日本語を併記 (歓迎文と同じ日英併記)・装飾絵文字なし。 */
+#settings-modal {
+    position: fixed; inset: 0; z-index: 115; background: rgba(20, 16, 8, .2);
+    backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
+}
+#settings-modal[hidden] { display: none; }
+#settings-box {
+    position: relative; width: min(540px, 94vw); max-height: 88dvh;
+    display: flex; flex-direction: column;   /* ヘッダ/フッタ固定、本文 (#settings-body) だけスクロール */
+    background: #fffdf6; color: #33302a; border: 1px solid #c8c0ae;
+    border-radius: 8px; box-shadow: 0 16px 56px rgba(0,0,0,.55);
+    padding: 18px 22px 16px;
+    font-family: "Noto Sans CJK JP", "Migu 1M", system-ui, sans-serif;
+}
+#settings-body {
+    flex: 1 1 auto; min-height: 0; overflow-y: auto;
+    margin-right: -16px; padding-right: 16px;   /* スクロールバーを箱の縁近くへ */
+}
+#settings-close {
+    position: absolute; top: 8px; right: 10px; background: transparent; color: #8a8377;
+    border: none; font-size: 18px; cursor: pointer; line-height: 1; padding: 2px 6px;
+}
+#settings-close:hover { color: #b3261e; }
+#settings-title { font-size: 15px; font-weight: 700; color: #5a5347; margin-bottom: 2px; }
+#settings-title .ja { color: #9a8f5e; font-weight: 400; font-size: 13px; margin-left: 6px; }
+.settings-group { margin-top: 15px; }
+.settings-group > h3 {
+    font-size: 11px; color: #9a948a; text-transform: uppercase; letter-spacing: .06em;
+    border-bottom: 1px solid #efe9da; padding-bottom: 3px; margin-bottom: 4px; font-weight: 700;
+}
+.settings-group > h3 .ja { text-transform: none; letter-spacing: normal; color: #b0a897; margin-left: 6px; font-weight: 400; }
+.set-row { display: flex; align-items: flex-start; gap: 12px; padding: 7px 0; border-top: 1px solid #f2ecdd; }
+.set-row:first-of-type { border-top: none; }
+.set-main { flex: 1 1 auto; min-width: 0; }
+.set-label { font-size: 14px; color: #33302a; }
+.set-label .ja { color: #6b6354; font-size: 12px; margin-left: 6px; }
+.set-desc { font-size: 11px; color: #9a948a; margin-top: 1px; line-height: 1.4; }
+.set-desc .en { color: #bdb5a4; }        /* JP→EN の順・英語は淡く (歓迎文/About と同じ日英併記) */
+.set-ctl { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-top: 1px; }
+.next-run-badge {
+    display: inline-block; font-size: 10px; color: #9c6d00; background: #f6efdc;
+    border: 1px solid #e3d6b0; border-radius: 3px; padding: 0 5px; margin-left: 6px; white-space: nowrap;
+}
+#settings-box input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6b8f3f; cursor: pointer; }
+#settings-box input[type="range"] { width: 128px; accent-color: #6b8f3f; cursor: pointer; }
+#settings-box select {
+    background: #fff; color: #3a352c; border: 1px solid #c8c0ae; border-radius: 3px;
+    padding: 2px 6px; font: inherit; cursor: pointer;
+}
+.set-ctl .val { font-size: 12px; color: #6b6354; font-variant-numeric: tabular-nums; min-width: 40px; text-align: right; white-space: nowrap; }
+.vol-grid { display: grid; grid-template-columns: auto 1fr auto; gap: 3px 8px; align-items: center; }
+.vol-grid label { font-size: 11px; color: #9a948a; }
+.set-foot {
+    display: flex; justify-content: space-between; gap: 10px;
+    flex: 0 0 auto; margin-top: 10px; padding-top: 10px; border-top: 1px solid #efe9da;
+}
+.set-foot button {
+    font: inherit; font-size: 13px; padding: 5px 14px; border-radius: 5px;
+    border: 1px solid #c8c0ae; background: #fbf9f3; color: #5a5344; cursor: pointer;
+}
+.set-foot button:hover { background: #e9e3d3; color: #3a352c; }
+.set-foot button .ja { color: #9a8f5e; font-size: 11px; margin-left: 4px; }
+/* Gamepad グループ — 押下ボタンの live 表示 + ボタン行。設定モーダルは常に紙トーンなのでテーマ非依存。 */
+.pad-live { font-size: 12px; color: #9a948a; padding: 5px 0 3px; }
+.pad-live.on { color: #2f7d1f; font-weight: 700; }
+.pad-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 6px; border-top: 1px solid #f2ecdd; border-radius: 4px; }
+.pad-row .pad-btn-label { font-size: 13px; color: #33302a; }
+.pad-row.hot { background: #eef6e2; }
+.pad-row.hot .pad-btn-label { color: #2f6614; font-weight: 700; }
+.pad-foot { margin-top: 8px; }
+#pad-reset { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 5px; border: 1px solid #c8c0ae; background: #fbf9f3; color: #5a5344; cursor: pointer; }
+#pad-reset:hover { background: #e9e3d3; color: #3a352c; }
+
+/* 入力バーの歯車 (設定パネルの入口)。#ime-toggle と同じダークトーン。パネル最大化中も #stage 内なので残る。 */
+#settings-toggle {
+    flex: 0 0 auto; width: 34px; height: 30px; cursor: pointer; line-height: 1; margin-left: auto;
+    background: var(--iconbtn-bg); color: var(--iconbtn-fg); border: 1px solid var(--iconbtn-border); border-radius: 5px; font-size: 16px;
+}
+#settings-toggle:hover { background: var(--iconbtn-bg-hover); }
+
+
+/* ===== Dante98 Reviver v0.6 dedicated UI =====
+ * QuuBee itself remains intact.  The normal filer is hidden during everyday use and can
+ * be reopened from the maintenance button below the PC-98 screen. */
+body.my-susans-mode #divider { display: none; }
+body.my-susans-mode.panel-hidden #panel { display: none; }
+body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
+#my-launcher {
+    position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+    background: #0b0b0b; color: #eee; padding: 24px; box-sizing: border-box;
+}
+#my-launcher[hidden] { display: none; }
+#my-launcher-card {
+    width: min(560px, 92vw); max-height: 88vh; overflow: auto; text-align: center;
+    border: 1px solid #555; border-radius: 10px; background: #171717; padding: 28px 24px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+#my-launcher h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: .08em; }
+#my-launcher .sub { color: #bbb; margin-bottom: 22px; }
+#my-game-list { display: grid; gap: 10px; }
+.my-direct-zip-separator {
+    margin: 12px 0 8px; color: #7f8790; font-size: 11px; letter-spacing: .18em;
+}
+.my-direct-zip-button {
+    width: 100%; font: inherit; font-size: 15px; padding: 10px 14px; border-radius: 7px; cursor: pointer;
+    border: 1px solid #496b84; background: #172c3a; color: #dff3ff;
+}
+.my-direct-zip-button:hover { background: #1d3b4e; }
+.my-direct-zip-button:disabled { opacity: .55; cursor: wait; }
+.my-game-button {
+    font: inherit; font-size: 18px; padding: 12px 16px; border-radius: 7px; cursor: pointer;
+    border: 1px solid #6d8060; background: #20301d; color: #eaf5e3;
+}
+.my-game-button:hover { background: #2b4425; }
+.my-game-button:disabled { opacity: .55; cursor: wait; }
+#my-launcher-status { min-height: 1.4em; margin-top: 14px; color: #bbb; font-size: 13px; }
+#my-launcher-status.err { color: #ff9a8f; }
+#my-help-button {
+    margin-top: 18px; border: 0; background: transparent; color: #b9c9ff;
+    text-decoration: underline; cursor: pointer; font: inherit;
+}
+#my-launcher-exit {
+    display: block; margin: 14px auto 0; font: inherit; padding: 8px 22px; border-radius: 6px; cursor: pointer;
+    border: 1px solid #8b6661; background: #34201e; color: #ffd9d3;
+}
+#my-launcher-exit:hover { background: #4a2925; }
+#my-help-inner h3 { margin: 1.2em 0 .35em; }
+#my-help-inner pre { text-align: left; overflow: auto; background: #0e0e0e; border: 1px solid #444; border-radius: 6px; padding: 12px; line-height: 1.45; }
+#my-help-dialog {
+    border: 1px solid #666; border-radius: 10px; background: #171717; color: #eee;
+    width: min(620px, 90vw); padding: 0; box-shadow: 0 14px 50px rgba(0,0,0,.55);
+}
+#my-help-dialog::backdrop { background: rgba(0,0,0,.68); }
+#my-help-inner { padding: 24px; line-height: 1.7; }
+#my-help-inner h2 { margin-top: 0; }
+#my-help-inner ol { text-align: left; padding-left: 1.5em; }
+#my-help-inner code { background: #292929; padding: 2px 5px; border-radius: 4px; }
+#my-help-close {
+    font: inherit; padding: 8px 18px; border-radius: 6px; border: 1px solid #777;
+    background: #2a2a2a; color: #eee; cursor: pointer;
+}
+
+#my-susans-bar {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    padding: 7px 10px; background: #eee8da; border-top: 1px solid #cfc8b9;
+    color: #3a352c; font-size: 13px;
+}
+#my-susans-bar .my-title { font-weight: 700; letter-spacing: .05em; margin-right: auto; }
+#my-susans-bar button {
+    font: inherit; padding: 5px 10px; border-radius: 5px; cursor: pointer;
+    border: 1px solid #b8af9c; background: #fbf9f3; color: #4b4438;
+}
+#my-susans-bar button:hover { background: #e3ddd0; }
+#my-export-zip { border-color: #7fa45f !important; background: #e8f2da !important; color: #315f19 !important; }
+#my-export-zip:hover { background: #d9e9c2 !important; }
+#my-exit { border-color: #c99a94 !important; background: #f8e7e3 !important; color: #8f2e25 !important; }
+#my-exit:hover { background: #f1d5cf !important; }
+#my-status { flex: 1 1 100%; min-height: 1.2em; color: #6b6354; font-size: 12px; }
+#my-status.ok { color: #2f6614; }
+#my-status.err { color: #a12c21; }
+@media (max-width: 720px) {
+    #my-launcher {
+    position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;
+    background: #0b0b0b; color: #eee; padding: 24px; box-sizing: border-box;
+}
+#my-launcher[hidden] { display: none; }
+#my-launcher-card {
+    width: min(560px, 92vw); max-height: 88vh; overflow: auto; text-align: center;
+    border: 1px solid #555; border-radius: 10px; background: #171717; padding: 28px 24px;
+    box-shadow: 0 12px 40px rgba(0,0,0,.45);
+}
+#my-launcher h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: .08em; }
+#my-launcher .sub { color: #bbb; margin-bottom: 22px; }
+#my-game-list { display: grid; gap: 10px; }
+.my-game-button {
+    font: inherit; font-size: 18px; padding: 12px 16px; border-radius: 7px; cursor: pointer;
+    border: 1px solid #6d8060; background: #20301d; color: #eaf5e3;
+}
+.my-game-button:hover { background: #2b4425; }
+.my-game-button:disabled { opacity: .55; cursor: wait; }
+#my-launcher-status { min-height: 1.4em; margin-top: 14px; color: #bbb; font-size: 13px; }
+#my-launcher-status.err { color: #ff9a8f; }
+#my-susans-bar { justify-content: center; }
+    #my-susans-bar .my-title { flex: 1 1 100%; text-align: center; margin-right: 0; }
+    #my-susans-bar button { flex: 1 1 auto; }
+}
+
+
+
+/* ===== MY SUSANS v0.7.1 — PLIP shell ===== */
+:root {
+    --susans-night: #020617;
+    --susans-panel: rgba(5, 12, 27, .90);
+    --susans-blue: #8ed8ff;
+    --susans-gold: #e7bf73;
+    --susans-line: rgba(148, 196, 255, .34);
+}
+#my-launcher {
+    position: absolute; inset: 0; z-index: 30;
+    display: flex; align-items: stretch; justify-content: center;
+    overflow-y: auto; padding: 0;
+    color: #eef7ff;
+    background:
+        radial-gradient(circle at 68% 30%, rgba(49, 90, 146, .18), transparent 34%),
+        linear-gradient(180deg, #020617 0%, #07101e 58%, #020617 100%);
+}
+#my-launcher[hidden] { display: none; }
+#my-launcher-card {
+    width: min(1500px, 100%); max-height: none; overflow: visible;
+    text-align: center; border: 0; border-radius: 0; background: transparent;
+    padding: 0 22px 18px; box-shadow: none;
+}
+.my-plip-header {
+    min-height: 82px; display: grid; grid-template-columns: 112px 1fr auto;
+    align-items: center; gap: 18px; padding: 10px 2px 8px;
+    border-bottom: 1px solid rgba(111, 161, 211, .22);
+}
+.my-symbol-wrap { width: 102px; height: 138px; align-self: start; position: relative; z-index: 2; }
+.my-symbol-wrap iframe { width: 100%; height: 100%; border: 0; display: block; background: transparent; }
+.my-brand { text-align: left; min-width: 0; }
+.my-brand h1 { margin: 0; font-size: clamp(26px, 3.2vw, 46px); letter-spacing: .14em; color: #f8fbff; text-shadow: 0 0 18px rgba(105,195,255,.22); }
+.my-brand .sub { margin: 3px 0 0; color: #9fb3c8; font-size: 12px; letter-spacing: .12em; }
+.my-header-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.my-header-actions a, .my-header-actions button {
+    border: 1px solid #41556c; border-radius: 8px; background: rgba(9,20,37,.88); color: #d8e8f7;
+    padding: 8px 12px; font: inherit; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer;
+}
+.my-header-actions a:hover, .my-header-actions button:hover { background: #13263e; border-color: #76b9ef; color: #fff; }
+.my-hero {
+    position: relative; width: min(1380px, 100%); margin: 12px auto 0;
+    border: 1px solid rgba(125, 171, 220, .28); border-radius: 14px; overflow: hidden;
+    background: #020617; box-shadow: 0 20px 70px rgba(0,0,0,.48), 0 0 32px rgba(70,120,190,.08);
+}
+.my-hero img { display: block; width: 100%; height: auto; max-height: 58vh; object-fit: cover; object-position: center; }
+.my-hero::after { content:""; position:absolute; inset:0; pointer-events:none; box-shadow: inset 0 -80px 90px rgba(2,6,23,.50); }
+
+
+.susans-sword-glow{position:absolute;left:60.1%;top:31.1%;width:3.3%;height:28%;z-index:2;pointer-events:none;transform:rotate(24deg);transform-origin:50% 82%;border-radius:50%;opacity:.22;background:radial-gradient(ellipse at 50% 48%,rgba(245,253,255,.92) 0%,rgba(176,232,255,.58) 16%,rgba(79,176,255,.25) 38%,rgba(25,105,255,.08) 62%,transparent 78%);filter:blur(4px);mix-blend-mode:screen;animation:susansSwordPulse 4.4s ease-in-out infinite}
+.susans-sword-glow::after{content:"";position:absolute;left:40%;top:3%;width:20%;height:84%;border-radius:50%;background:linear-gradient(to bottom,rgba(235,252,255,.05),rgba(226,249,255,.88) 18%,rgba(112,205,255,.70) 58%,rgba(231,252,255,.22) 90%,transparent);filter:blur(2px)}
+@keyframes susansSwordPulse{0%,100%{opacity:.18;filter:blur(4px) brightness(.92)}45%{opacity:.42;filter:blur(5px) brightness(1.16)}58%{opacity:.54;filter:blur(6px) brightness(1.30)}72%{opacity:.31;filter:blur(5px) brightness(1.08)}}
+@media (prefers-reduced-motion:reduce){.susans-sword-glow{animation:none!important;opacity:.22}}
+
+/* ===== MY SUSANS v0.7.3：雲の奥の青白い稲妻 =====
+   元画像は変更せず、タイトル画面の上にだけ薄い光と稲妻を重ねる。 */
+.susans-storm-layer {
+    position:absolute; inset:0; z-index:1; pointer-events:none; overflow:hidden;
+    opacity:0;
+    background:
+        radial-gradient(ellipse at 66% 24%, rgba(190,235,255,.44) 0%, rgba(92,176,255,.22) 13%, rgba(48,109,190,.08) 28%, transparent 47%),
+        radial-gradient(ellipse at 52% 12%, rgba(220,245,255,.20) 0%, rgba(106,181,255,.08) 25%, transparent 46%);
+    mix-blend-mode:screen;
+}
+.susans-storm-layer.is-flashing {
+    animation:susansCloudFlash .72s ease-out both;
+}
+.susans-lightning-svg {
+    position:absolute; inset:0; width:100%; height:100%; overflow:visible;
+}
+.susans-lightning-bolt {
+    opacity:0;
+    fill:none;
+    stroke:#dff8ff;
+    stroke-width:2.2;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+    vector-effect:non-scaling-stroke;
+    filter:drop-shadow(0 0 2px rgba(255,255,255,.95)) drop-shadow(0 0 8px rgba(91,190,255,.92));
+}
+.susans-lightning-bolt.is-active {
+    animation:susansBoltFlash .56s ease-out both;
+}
+@keyframes susansCloudFlash {
+    0%,100% { opacity:0; }
+    8%  { opacity:.18; }
+    14% { opacity:.66; }
+    23% { opacity:.08; }
+    31% { opacity:.88; }
+    43% { opacity:.22; }
+    57% { opacity:.52; }
+    72% { opacity:.12; }
+}
+@keyframes susansBoltFlash {
+    0%,100% { opacity:0; }
+    10% { opacity:.18; }
+    16% { opacity:.94; }
+    26% { opacity:.12; }
+    34% { opacity:.78; }
+    50% { opacity:.20; }
+    67% { opacity:.52; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .susans-storm-layer, .susans-lightning-bolt { animation:none !important; opacity:0 !important; }
+}
+.my-launch-panel {
+    position: relative; z-index: 2; width: min(900px, 94%); margin: -28px auto 0; padding: 18px 20px 16px;
+    background: linear-gradient(180deg, rgba(7,17,34,.96), rgba(3,9,20,.98));
+    border: 1px solid var(--susans-line); border-radius: 14px;
+    box-shadow: 0 16px 45px rgba(0,0,0,.48), 0 0 18px rgba(88,176,255,.08);
+}
+.my-launch-title { color: #dbeeff; font-size: 13px; font-weight: 800; letter-spacing: .14em; margin-bottom: 10px; }
+#my-game-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 9px; }
+.my-game-button {
+    font: inherit; font-size: 14px; font-weight: 800; padding: 11px 13px; border-radius: 8px; cursor: pointer;
+    border: 1px solid #324d68; background: rgba(14,32,53,.86); color: #d8eafa; transition: .16s ease;
+}
+.my-game-button:hover { background: #183b5f; border-color: #6cc5ff; transform: translateY(-1px); }
+.my-game-button.is-selected { color: #07111f; background: linear-gradient(135deg,#eaf8ff,#8dd8ff); border-color: #d9f5ff; box-shadow: 0 0 18px rgba(89,190,255,.35); }
+.my-start-row { display:flex; align-items:center; justify-content:center; gap:10px; margin-top: 12px; flex-wrap:wrap; }
+#my-start-button {
+    min-width: 210px; padding: 11px 28px; border-radius: 9px; border: 1px solid #a7e0ff;
+    background: linear-gradient(135deg,#2c8ec9,#8bdcff); color:#04101d; font:inherit; font-weight:900; letter-spacing:.12em; cursor:pointer;
+    box-shadow: 0 0 22px rgba(77,184,246,.22);
+}
+#my-start-button:disabled { opacity:.36; cursor:not-allowed; filter:grayscale(.5); box-shadow:none; }
+#my-launcher-exit { margin:0; padding:10px 20px; border-radius:9px; border:1px solid #6e4e54; background:#2b171b; color:#ffd8dc; }
+#my-launcher-status { min-height:1.4em; margin-top:10px; color:#9fb3c8; font-size:12px; }
+#my-launcher-status.err { color:#ff9a9a; }
+.my-backup-note { margin: 8px 0 0; color:#8297aa; font-size:10px; line-height:1.5; }
+.my-plip-footer { margin-top: 14px; padding: 9px 8px 3px; color:#8196aa; font-size:10px; line-height:1.6; }
+.my-footer-row { display:flex; justify-content:center; gap:7px; flex-wrap:wrap; }
+.my-footer-link { border:0; background:transparent; color:#b9d4ea; text-decoration:underline; text-underline-offset:2px; cursor:pointer; font:inherit; padding:0; }
+#my-help-dialog, #my-trajectory-dialog {
+    border:1px solid #536b82; border-radius:12px; color:#eaf4ff; background:#081322;
+    width:min(720px,92vw); max-height:86vh; padding:0; box-shadow:0 18px 60px rgba(0,0,0,.65);
+}
+#my-help-dialog::backdrop, #my-trajectory-dialog::backdrop { background:rgba(0,0,0,.76); backdrop-filter:blur(2px); }
+#my-help-inner, #my-trajectory-inner { padding:24px; line-height:1.7; text-align:left; }
+#my-help-inner pre { background:#020914; }
+#my-trajectory-inner h2 { margin-top:0; }
+.my-history-entry { border-top:1px solid #27394b; padding:13px 0 4px; }
+.my-history-entry:first-of-type { border-top:0; padding-top:0; }
+.my-history-entry h3 { margin:0 0 5px; color:#cdeaff; font-size:15px; }
+.my-history-entry p { margin:0; color:#b5c6d7; }
+#my-susans-bar {
+    background: linear-gradient(180deg,#0b1727,#07111f); border-top:1px solid #263d54;
+    color:#d5e8f7; padding:8px 10px; gap:8px;
+}
+#my-susans-bar .my-title { color:#a8c8e3; }
+#my-susans-bar button { border:1px solid #35536d; background:#10243a; color:#dceefe; }
+#my-susans-bar button:hover { background:#173653; }
+#my-export-zip { border-color:#4d7c5a !important; background:#123221 !important; color:#bdeec8 !important; }
+#my-export-zip:hover { background:#19452c !important; }
+#my-title-return { border-color:#5c6681 !important; background:#20273d !important; color:#dfe5ff !important; }
+#my-title-return:hover { background:#2b3553 !important; }
+#my-status { color:#94abc0; }
+@media (max-width: 760px) {
+    #my-launcher-card { padding:0 10px 14px; }
+    .my-plip-header { grid-template-columns:72px 1fr; gap:10px; min-height:72px; }
+    .my-symbol-wrap { width:70px; height:96px; }
+    .my-brand h1 { font-size:23px; }
+    .my-brand .sub { font-size:9px; }
+    .my-header-actions { grid-column:1 / -1; justify-content:center; margin-top:-4px; }
+    .my-hero { margin-top:8px; border-radius:9px; }
+    .my-hero img { max-height:none; }
+    .my-launch-panel { width:96%; margin:-10px auto 0; padding:13px 12px; }
+    #my-game-list { grid-template-columns:1fr 1fr; gap:7px; }
+    .my-game-button { font-size:12px; padding:9px 8px; }
+    #my-start-button { min-width:170px; }
+    #my-susans-bar { justify-content:center; }
+    #my-susans-bar .my-title { flex:1 1 100%; text-align:center; margin-right:0; }
+    #my-susans-bar button { flex:1 1 auto; }
+}
+
+.susans-gear-motion{position:absolute;left:13.4%;top:59.1%;width:17.7%;aspect-ratio:1/1;z-index:2;pointer-events:none;border-radius:50%;opacity:.34;mix-blend-mode:screen;background:repeating-conic-gradient(from 0deg,rgba(255,221,150,.72) 0deg 2.4deg,transparent 2.4deg 10deg),radial-gradient(circle,transparent 0 66%,rgba(255,210,120,.28) 67% 72%,transparent 73%);-webkit-mask:radial-gradient(circle,transparent 0 62%,#000 63% 76%,transparent 77%);mask:radial-gradient(circle,transparent 0 62%,#000 63% 76%,transparent 77%);filter:drop-shadow(0 0 3px rgba(255,190,90,.24));animation:susansGearTurn 105s linear infinite}
+@keyframes susansGearTurn{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.susans-gear-motion{animation:none!important}}
+
+/* ===== MY SUSANS v0.7.6：PLIP共通「リンク／使い方？」ボタン ===== */
+.my-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    margin-left: auto;
+}
+.my-plip-link-button,
+#my-help-button.my-plip-help-button {
+    margin: 0 !important;
+    min-height: 32px;
+    padding: 7px 10px !important;
+    border-radius: 8px !important;
+    font: inherit !important;
+    font-size: 12px !important;
+    font-weight: 800 !important;
+    line-height: 1 !important;
+    cursor: pointer;
+    text-decoration: none !important;
+    box-shadow: 0 4px 10px rgba(0,0,0,.25);
+    transition: background .18s ease, border-color .18s ease, color .18s ease, transform .18s ease;
+}
+.my-plip-link-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #cbd5e1 !important;
+    background: #111827 !important;
+    border: 1px solid #475569 !important;
+}
+.my-plip-link-button:hover {
+    color: #fff !important;
+    background: #1e293b !important;
+    border-color: #a5b4fc !important;
+    transform: translateY(-1px);
+}
+#my-help-button.my-plip-help-button {
+    color: #e2e8f0 !important;
+    background: linear-gradient(90deg,#1e293b,#334155) !important;
+    border: 1px solid #475569 !important;
+}
+#my-help-button.my-plip-help-button:hover {
+    color: #fff !important;
+    background: linear-gradient(90deg,#334155,#475569) !important;
+    border-color: #64748b !important;
+    transform: translateY(-1px);
+}
+.my-plip-link-icon {
+    position: relative;
+    display: inline-block;
+    width: 15px;
+    height: 15px;
+    flex: 0 0 15px;
+}
+.my-plip-link-icon .fa-lightbulb {
+    position: absolute;
+    left: 0;
+    top: 1px;
+    font-size: 13px;
+    animation: myPlipRainbowText 7s linear infinite;
+}
+.my-plip-link-icon .fa-bolt {
+    position: absolute;
+    right: -2px;
+    top: -3px;
+    font-size: 8px;
+    color: #fde047;
+    filter: drop-shadow(0 0 2px rgba(253,224,71,.65));
+}
+@keyframes myPlipRainbowText {
+    0%{color:#ff0055}14%{color:#ff5500}28%{color:#ffcc00}42%{color:#00ff66}
+    56%{color:#00ccff}70%{color:#3333ff}84%{color:#9900ff}100%{color:#ff0055}
+}
+
+/* ===== v0.7.6：聖剣サルヴァドゥの脈動を明確化 ===== */
+.susans-sword-glow {
+    opacity: .42 !important;
+    filter: blur(4px) brightness(1.18) drop-shadow(0 0 8px rgba(110,205,255,.72)) !important;
+}
+.susans-sword-glow::before {
+    content:"";
+    position:absolute;
+    left:32%;
+    top:-1%;
+    width:36%;
+    height:90%;
+    border-radius:50%;
+    background:linear-gradient(to bottom,
+        rgba(255,255,255,.12),
+        rgba(242,253,255,.98) 18%,
+        rgba(135,220,255,.92) 54%,
+        rgba(210,248,255,.36) 87%,
+        transparent);
+    filter:blur(1.5px) drop-shadow(0 0 10px rgba(140,225,255,.95));
+    animation:susansSwordCorePulse 4.2s ease-in-out infinite;
+}
+@keyframes susansSwordCorePulse {
+    0%,100% { opacity:.38; transform:scaleX(.90); }
+    48% { opacity:.82; transform:scaleX(1.10); }
+    57% { opacity:1; transform:scaleX(1.28); }
+    70% { opacity:.66; transform:scaleX(1.02); }
+}
+@keyframes susansSwordPulse {
+    0%,100% {
+        opacity:.34;
+        filter:blur(4px) brightness(1.02) drop-shadow(0 0 6px rgba(105,200,255,.55));
+    }
+    42% {
+        opacity:.64;
+        filter:blur(5px) brightness(1.42) drop-shadow(0 0 14px rgba(105,205,255,.86));
+    }
+    56% {
+        opacity:.92;
+        filter:blur(7px) brightness(1.90) drop-shadow(0 0 26px rgba(210,247,255,.98));
+    }
+    71% {
+        opacity:.56;
+        filter:blur(5px) brightness(1.30) drop-shadow(0 0 11px rgba(100,195,255,.76));
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .susans-sword-glow::before { animation: none !important; opacity:.58; }
+}
+@media (max-width: 640px) {
+    .my-header-actions { gap: 6px !important; }
+    .my-plip-link-button,
+    #my-help-button.my-plip-help-button {
+        padding: 7px 8px !important;
+        font-size: 11px !important;
+    }
+}
+
+/* v0.7.8: 稲妻と聖剣の演出だけを強化 */
+.susans-storm-layer{background:radial-gradient(ellipse at 66% 24%,rgba(225,248,255,.78) 0%,rgba(130,211,255,.48) 14%,rgba(64,140,235,.20) 32%,transparent 55%),radial-gradient(ellipse at 52% 12%,rgba(236,250,255,.46) 0%,rgba(126,198,255,.20) 28%,transparent 52%)!important}
+.susans-lightning-bolt{stroke:#f4fdff!important;stroke-width:3.4!important;filter:drop-shadow(0 0 3px #fff) drop-shadow(0 0 10px rgba(116,211,255,1)) drop-shadow(0 0 20px rgba(65,145,255,.82))!important}
+@keyframes susansCloudFlash{0%,100%{opacity:0}7%{opacity:.28}13%{opacity:.90}22%{opacity:.15}30%{opacity:1}42%{opacity:.30}55%{opacity:.76}72%{opacity:.14}}
+@keyframes susansBoltFlash{0%,100%{opacity:0}9%{opacity:.30}15%{opacity:1}25%{opacity:.18}33%{opacity:.96}49%{opacity:.28}66%{opacity:.76}}
+.susans-sword-glow{opacity:.48!important;animation:susansSwordPulseV078 3.6s ease-in-out infinite!important}
+.susans-sword-glow::before{animation:susansSwordCorePulseV078 3.6s ease-in-out infinite!important}
+.susans-sword-glow::after{filter:blur(2px) drop-shadow(0 0 8px rgba(220,250,255,.88)) drop-shadow(0 0 16px rgba(75,180,255,.62))!important}
+@keyframes susansSwordPulseV078{
+0%,100%{opacity:.28;filter:blur(4px) brightness(.95) drop-shadow(0 0 5px rgba(95,185,255,.48));transform:rotate(24deg) scale(.98)}
+42%{opacity:.72;filter:blur(6px) brightness(1.62) drop-shadow(0 0 17px rgba(125,220,255,.92));transform:rotate(24deg) scale(1.04)}
+56%{opacity:1;filter:blur(8px) brightness(2.25) drop-shadow(0 0 30px rgba(225,252,255,1)) drop-shadow(0 0 44px rgba(65,155,255,.82));transform:rotate(24deg) scale(1.10)}
+72%{opacity:.58;filter:blur(5px) brightness(1.35) drop-shadow(0 0 12px rgba(105,205,255,.78));transform:rotate(24deg) scale(1.02)}}
+@keyframes susansSwordCorePulseV078{0%,100%{opacity:.25;transform:scaleX(.82)}44%{opacity:.78;transform:scaleX(1.10)}56%{opacity:1;transform:scaleX(1.48)}70%{opacity:.58;transform:scaleX(1.02)}}
+
+/* ===== MY SUSANS v0.7.9：タイトル画面の表示幅調整 =====
+   大画面では左右に余白を取り、タイトル画像＋演出レイヤー全体を約80%幅で表示。
+   小さい画面では従来どおり幅を使い、スマホで小さくなりすぎるのを防ぐ。 */
+@media (min-width: 1100px){
+  .my-hero{
+    width:70% !important;
+    max-width:none !important;
+    margin-left:auto !important;
+    margin-right:auto !important;
+  }
+}
+
+/* ===== MY SUSANS v0.7.12：横並びメニュー・小説入口・Now Playing ===== */
+.my-header-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 7px;
+    min-width: 0;
+}
+.my-now-playing {
+    max-width: min(360px, 34vw);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+    padding: 5px 9px;
+    border: 1px solid rgba(87,136,181,.38);
+    border-radius: 8px;
+    background: rgba(4,13,27,.72);
+    color: #d7ecff;
+    font-size: 10px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+}
+.my-now-playing-label {
+    flex: 0 0 auto;
+    color: #7dbbe8;
+    font-weight: 900;
+    letter-spacing: .08em;
+}
+#my-now-playing-track {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: #f4fbff;
+    font-weight: 700;
+}
+.my-menu-row {
+    position: relative;
+    z-index: 2;
+    width: min(1120px, 94%);
+    margin: -28px auto 0;
+    display: grid;
+    grid-template-columns: minmax(0, 2.15fr) minmax(235px, .85fr);
+    gap: 14px;
+    align-items: stretch;
+}
+.my-menu-row .my-launch-panel {
+    width: auto;
+    margin: 0;
+}
+.my-books-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding: 18px 16px 16px;
+    background: linear-gradient(180deg, rgba(7,17,34,.94), rgba(3,9,20,.98));
+    border: 1px solid rgba(91,125,158,.42);
+    border-radius: 14px;
+    box-shadow: 0 16px 45px rgba(0,0,0,.42), 0 0 18px rgba(88,176,255,.05);
+}
+.my-books-icon {
+    margin-top: 1px;
+    font-size: 34px;
+    filter: grayscale(.45);
+    opacity: .72;
+}
+.my-books-name {
+    margin-top: 4px;
+    color: #b8c8d8;
+    font-size: 15px;
+    font-weight: 900;
+    letter-spacing: .06em;
+}
+.my-books-sub {
+    margin-top: 2px;
+    color: #63788c;
+    font-size: 9px;
+    letter-spacing: .12em;
+}
+.my-books-button {
+    width: 100%;
+    margin-top: 13px;
+    padding: 11px 10px;
+    border: 1px solid #46515d;
+    border-radius: 9px;
+    background: linear-gradient(180deg, #26303a, #1a2129);
+    color: #8995a0;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 900;
+    cursor: not-allowed;
+    opacity: .72;
+    pointer-events: none;
+}
+.my-books-button span {
+    display: block;
+    margin-top: 3px;
+    color: #687480;
+    font-size: 9px;
+    letter-spacing: .14em;
+}
+.my-books-note {
+    margin: 9px 0 0;
+    color: #667b8f;
+    font-size: 9px;
+    line-height: 1.45;
+}
+@media (max-width: 760px) {
+    .my-header-side {
+        grid-column: 1 / -1;
+        align-items: center;
+        width: 100%;
+        gap: 6px;
+    }
+    .my-now-playing {
+        max-width: 92vw;
+        width: min(520px, 92vw);
+        justify-content: center;
+    }
+    .my-menu-row {
+        width: 96%;
+        grid-template-columns: 1fr;
+        gap: 9px;
+        margin-top: -10px;
+    }
+    .my-menu-row .my-launch-panel {
+        width: 100%;
+        margin: 0;
+    }
+    .my-books-panel {
+        padding: 10px 12px;
+        display: grid;
+        grid-template-columns: auto 1fr minmax(130px, .9fr);
+        grid-template-areas:
+            "icon title button"
+            "icon sub button";
+        column-gap: 10px;
+        row-gap: 1px;
+        text-align: left;
+    }
+    .my-books-panel .my-launch-title { display: none; }
+    .my-books-icon { grid-area: icon; margin: 0; font-size: 27px; }
+    .my-books-name { grid-area: title; margin: 0; font-size: 13px; align-self: end; }
+    .my-books-sub { grid-area: sub; margin: 0; align-self: start; }
+    .my-books-button { grid-area: button; margin: 0; text-align: center; align-self: center; padding: 8px 7px; }
+    .my-books-note { display: none; }
+}
+
+</style>
+<script>
+/* ライトモード先読み (FOUC 防止)。localStorage の theme だけを bridge.js ロード前に <html> へ反映する。
+   キーは quubee_settings_v1 (bridge.js の SETTINGS_KEY と同期)。storage 不可時は既定 (ダーク)。 */
+try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s.theme === 'light') document.documentElement.dataset.theme = 'light'; } catch (e) {}
+</script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="my-susans-mode panel-hidden">
+<div id="app">
+    <div id="stage">
+        <div id="my-launcher">
+            <div id="my-launcher-card">
+                <header class="my-plip-header">
+                    <div class="my-symbol-wrap">
+                        <iframe src="SUSANS_button.html?title=MY%20SUSANS&amp;musicBase=/music/" title="SUSANS PLIPシンボル" scrolling="no" sandbox="allow-scripts"></iframe>
+                    </div>
+                    <div class="my-brand">
+                        <h1>MY SUSANS</h1>
+                        <div class="sub">THE WORLD OF SUSANS — 1990s → NOW</div>
+                    </div>
+                    <div class="my-header-side">
+                        <div id="my-now-playing" class="my-now-playing" aria-live="polite" title="タイトル画面で再生中の曲">
+                            <span class="my-now-playing-label">♪ NOW PLAYING</span>
+                            <span id="my-now-playing-track">停止中</span>
+                        </div>
+                        <div class="my-header-actions">
+                            <a href="https://hiro-seki-tech.github.io/Produce-your-Life-with-IP/links" target="_blank" rel="noopener noreferrer" class="my-plip-link-button">
+                                <span class="my-plip-link-icon" aria-hidden="true">
+                                    <i class="fa-solid fa-lightbulb"></i>
+                                    <i class="fa-solid fa-bolt"></i>
+                                </span>
+                                <span>リンク</span>
+                            </a>
+                            <button id="my-help-button" type="button" class="my-plip-help-button">使い方？</button>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="my-hero" aria-label="SUSANS 現代版タイトル画面">
+                    <img src="assets/susans-title.png" alt="SUSANS 現代版タイトルアート">
+                    <div class="susans-gear-motion" aria-hidden="true"></div>
+                    <div class="susans-sword-glow" aria-hidden="true"></div>
+                    <div id="susans-storm-layer" class="susans-storm-layer" aria-hidden="true">
+                        <svg class="susans-lightning-svg" viewBox="0 0 1640 900" preserveAspectRatio="none">
+                            <!-- 雲の奥に埋もれるよう、上半分だけに細い稲妻を配置 -->
+                            <path class="susans-lightning-bolt" d="M1088 95 L1058 152 L1074 148 L1032 218 L1052 211 L1011 281" />
+                            <path class="susans-lightning-bolt" d="M906 54 L886 112 L899 107 L864 169 L879 164 L846 225" />
+                            <path class="susans-lightning-bolt" d="M1238 122 L1214 164 L1227 161 L1192 218 L1207 214 L1175 267" />
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="my-menu-row">
+                    <section class="my-launch-panel" aria-label="ゲーム選択">
+                        <div class="my-launch-title">SELECT GAME</div>
+                        <div id="my-game-list"></div>
+                        <div class="my-direct-zip-separator" aria-hidden="true">OR</div>
+                        <button id="my-open-game-zip" class="my-direct-zip-button" type="button">📂 ゲームZIPを直接読み込む</button>
+                        <input id="my-game-zip-input" type="file" accept=".zip" hidden>
+                        <div class="my-start-row">
+                            <button id="my-start-button" type="button" disabled>▶ START</button>
+                            <button id="my-launcher-exit" type="button">終了</button>
+                        </div>
+                        <div id="my-launcher-status" role="status" aria-live="polite">games.json を読み込んでいます…</div>
+                        <p class="my-backup-note">MY SUSANS は原本ZIPを自動上書きしません。大切な原本は別の場所へバックアップしてください。</p>
+                    </section>
+
+                    <aside class="my-books-panel" aria-label="SUSANS 小説">
+                        <div class="my-launch-title">SUSANS LIBRARY</div>
+                        <div class="my-books-icon" aria-hidden="true">📖</div>
+                        <div class="my-books-name">SUSANS 小説</div>
+                        <div class="my-books-sub">NOVEL / STORY ARCHIVE</div>
+                        <a id="my-books-link"
+                           href="books/index.html"
+                           class="my-books-button is-disabled"
+                           aria-disabled="true"
+                           tabindex="-1"
+                           onclick="return false;"
+                           data-future-href="books/index.html">
+                            📖 小説を読む
+                            <span>準備中</span>
+                        </a>
+                        <p class="my-books-note">SUSANSの物語を読むための入口。完成後に開放します。</p>
+                    </aside>
+                </div>
+
+                <footer class="my-plip-footer">
+                    <div>© 2026 PLIP &amp; Hiro-Seki-Tech &amp; AI Crew</div>
+                    <div class="my-footer-row"><span>Version 0.7.12</span><span>｜</span><span>2026.08.19</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
+                </footer>
+
+                <dialog id="my-help-dialog">
+                    <div id="my-help-inner">
+                        <h2>MY SUSANS の使い方</h2>
+                        <p><strong>30年前のSUSANSと、その派生作品を現代のブラウザ上で遊び、編集し、未来へ残すためのMY環境です。</strong></p>
+                        <h3>基本の流れ</h3>
+                        <ol>
+                            <li>登録済み作品を使う場合は、一覧から作品を1つ選び「▶ START」を押します。</li>
+                            <li>PC上のZIPをその場で使いたい場合は「📂 ゲームZIPを直接読み込む」を押してZIPを選びます。この場合は選択後すぐ起動します。</li>
+                            <li>どちらの場合も、MY SUSANSがDante98 / Dante98IIと起動方法を自動判定します。</li>
+                            <li>ゲームを遊ぶ場合は、Dante側のテストプレイ／ゲーム機能を利用します。</li>
+                            <li>編集後は画面下の「📦 編集済みZIPを書き出す」で新しいZIPを保存します。</li>
+                            <li>内容を確認してから、必要に応じて <code>games/</code> 内の同名ZIPと手動で置き換えます。</li>
+                        </ol>
+                        <p><strong>重要：</strong>MY SUSANSは <code>games/</code> 内のZIPを自動上書きしません。原本は必ず別保管してください。</p>
+                        <h3>ゲームを追加する</h3>
+                        <p>いつも使う作品をメニューへ固定登録したい場合は、従来どおり <code>games/</code> にZIPを置き、<code>games/games.json</code> に表示名とZIP名を追加します。</p>
+                        <p>一時的に開くだけなら登録は不要です。「📂 ゲームZIPを直接読み込む」からPC上のZIPをそのまま選べます。Dante98 / Dante98IIの種類を自分で指定する必要はありません。</p>
+<pre>[
+  {
+    "name": "SUSANS",
+    "file": "SUSANS.zip"
+  },
+  {
+    "name": "SUSANS easy",
+    "file": "SUSANS_easy.zip"
+  }
+]</pre>
+                        <h3>QuuBeeへの感謝</h3>
+                        <p>MY SUSANSの中核は、PC-98ソフトを現代のブラウザで動かす <strong>QuuBee</strong> と、その基盤となるNP2kai等の技術の上に成り立っています。ライセンスと帰属表示は同梱の <code>CREDITS.md</code> / <code>LICENSE</code> 類を維持しています。</p>
+                        <button id="my-help-close" type="button">閉じる</button>
+                    </div>
+                </dialog>
+
+                <dialog id="my-trajectory-dialog">
+                    <div id="my-trajectory-inner">
+                        <h2>📜 SUSANSの軌跡</h2>
+                        <div class="my-history-entry"><h3>Version 0.7.12　2026.08.19</h3><p>公開版と見分けやすいMY専用シンボル表現を反映。タイトル上部に再生中の曲名表示を追加し、将来のSUSANS小説（books/index.html）へつながる入口を準備。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.11　2026.08.16</h3><p>登録済みゲームメニューを維持したまま、PC上のDante98 / Dante98II ZIPを直接読み込んで起動できる機能を追加。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.10　2026.08.16</h3><p>大画面のタイトル領域を約70％幅へ調整し、左右の重要要素を見渡しやすくした。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.9　2026.08.16</h3><p>大画面でタイトル画面の左右に余白を設け、全景を見渡しやすい約80％幅表示へ調整。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.8　2026.08.16</h3><p>タイトル画面の稲妻と聖剣サルヴァドゥの発光演出を強化。元画像は変更せず、光の変化をより明確に感じられるよう調整。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.7　2026.08.15</h3><p>ゲームSTART時にタイトル画面のBGM／主題歌を自動停止し、Dante98本編のゲーム音と重ならないよう改善。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.6　2026.08.15</h3><p>聖剣サルヴァドゥの発光を強化し、光の脈動を明確に視認できるよう調整。リンク／使い方ボタンをPLIP共通UIへ統一。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.5　2026.08.15</h3><p>最新タイトル画面へ更新。左下の大歯車に超低速の回転演出を追加し、聖剣サルヴァドゥの発光位置も新しい画面に合わせて調整。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.4　2026.08.15</h3><p>現代版タイトル画面を更新し、聖剣サルヴァドゥの青白い光が静かに脈動する演出を追加。稲妻演出はv0.7.3のまま維持。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.3　2026.08.15</h3><p>現代版タイトル画面に、雲の奥で不定期に青白く走る稲妻演出を追加。元画像を変えず、静かな画面の中に時折世界が脈動する演出とした。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.2　2026.08.15</h3><p>PLIPシンボルの取り込み方式を調整。ボタン本体を変更せず、MY SUSANS側で音楽再生時の干渉を防ぐようiframeを分離。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.1　2026.08.13</h3><p>PLIPシンボルの吹き出し表示を復元。シンボル本体の大きさを保ったまま、吹き出し用の表示領域を追加。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7　2026.08.13</h3><p>MY SUSANSをPLIP作品として再構成開始。現代版タイトル画面、SUSANSシンボル、ゲーム選択→START導線を統合。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.6　2026.08</h3><p>Dante98 / Dante98IIの自動判定、編集環境起動、テストプレイ、編集済みZIP書き出しを統合し、復刻・保守の中核技術を確立。</p></div>
+                        <button id="my-trajectory-close" type="button">閉じる</button>
+                    </div>
+                </dialog>
+            </div>
+        </div>
+        <div id="canvas-wrap">
+            <canvas id="screen" width="640" height="400"></canvas>
+            <div id="progress-toast" hidden>
+                <div id="pt-label"></div>
+                <div id="pt-track"><div id="pt-fill"></div></div>
+            </div>
+        </div>
+        <div id="input-bar">
+            <button id="fep-toggle" title="FEP 日本語入力 (ゲスト画面内で変換) ON/OFF — Ctrl+Space または Ctrl+J">あ</button>
+            <button id="ime-toggle" title="テキスト入力 (IME 可) を表示/非表示">&#x270E;</button>
+            <input id="ime-input" type="text" placeholder="Type, Enter to send (empty Enter = newline)" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button id="settings-toggle" title="設定 / Settings">&#x2699;</button>
+        </div>
+        <div id="my-susans-bar" aria-label="Dante98 Reviver controls" hidden>
+            <span class="my-title" id="my-current-title">Dante98 Reviver</span>
+            <button id="my-export-zip" type="button">📦 編集済みZIPを書き出す</button>
+            <button id="my-qb-panel" type="button" aria-pressed="false">⚙ QB管理画面</button>
+            <button id="my-title-return" type="button">↩ タイトルへ戻る</button>
+            <span id="my-status" role="status" aria-live="polite"></span>
+        </div>
+    </div>
+    <div id="divider" title="ドラッグで幅を調整"><button id="stage-max"></button></div>
+    <div id="panel">
+        <div id="panel-head">
+            <span class="ph-left"><button id="open-archive">Open</button><button id="close-run" title="書庫を閉じる" hidden>×</button><span id="arc-name"></span></span>
+            <span class="ph-right"><button id="add-archive" hidden>＋Add</button></span>
+        </div>
+        <div id="crumbs" hidden></div>
+        <div id="file-list"></div>
+        <div id="run-bar">
+            <div class="rb-line1">
+                <span class="rb-field">Entry: <b id="run-entry">—</b></span>
+                <label class="rb-args">Args: <input id="run-cmdline" type="text" placeholder="(none)"></label>
+                <span class="rb-right">
+                    <button id="stop-button" hidden>■ Stop</button>
+                    <button id="run-button" disabled>▶ Run</button>
+                </span>
+            </div>
+            <div id="run-status"></div>
+        </div>
+        <div id="text-view">
+            <div id="text-head" hidden>
+                <span id="text-head-name"></span>
+                <button id="text-play" title="この曲を再生" hidden>▶ Play</button>
+                <button id="text-popout" title="別窓で大きく表示" hidden>View</button>
+                <button id="text-save" hidden>Save</button>
+            </div>
+            <pre id="text-body">QuuBee — PC-98 フリーソフトのブラウザプレイヤー
+
+フリーソフトの書庫 (.lzh / .zip) や ディスクイメージ (.d88 / .fdi / .hdm 等) を、
+このパネルかゲーム画面にドロップしてください。
+（[Open] でファイル選択も可）
+
+  ・ファイル一覧から readme などを開いて読みながら、
+  ・EXE / COM を選んで [▶ Run] で起動できます。
+  ・画像 (.MAG / .PI) や音楽 (.M) は単体でも開けます
+  　（ドロップ / [Open] / [＋Add]。見る・聴くだけなので前のゲームは閉じません）。
+  ・ドロップはいつでも「新しく開く」。重ねるときは [＋Add]
+  　（HD インストール風・パッチ当て・[Save] したセーブや自作データの
+  　　単体読み戻しに。セーブ等の単体ファイルは半角英数 8.3 名のみ）。
+  ・ディスクイメージはブートせず、中のファイルだけを取り出します
+  　（自己起動・非 FAT のイメージは対象外）。
+  ・左右の境目にある ▸ でゲーム画面を最大化（◂ で戻る）。
+
+ゲームは同梱していません。お手元のフリーソフトをどうぞ。
+画面クリックでマウスキャプチャ（ESC で解除）。
+
+QuuBee の設計思想と著作権クリーンの根拠 → <a class="about-link">宣言を読む</a>
+同梱物（フォント・音色など）の帰属とライセンス → <a href="CREDITS.md">CREDITS.md</a>
+
+────────────────────────────────────────
+
+QuuBee — a browser player for PC-98 freeware
+
+Drop a freeware archive (.lzh / .zip) or a disk image
+(.d88 / .fdi / .hdm etc.) onto this panel or the game screen.
+(You can also pick a file with [Open].)
+
+  - Open the readme and other files from the list, then
+  - select an EXE / COM and press [▶ Run] to start it.
+  - Image (.MAG / .PI) and music (.M) files open on their own too
+    (drop / [Open] / [＋Add] — just to view or play; your game stays loaded).
+  - A drop always opens fresh. Use [＋Add] to layer files on top
+    (HD-install style, patches, or re-importing saves and your own
+    data exported with [Save]. Single saved files: ASCII 8.3 names only).
+  - Disk images are never booted — only the files inside are
+    extracted (self-booting / non-FAT images are not supported).
+  - The ▸ handle on the seam maximizes the game screen (◂ restores).
+
+No games are bundled. Bring your own freeware.
+Click the screen to capture the mouse (press ESC to release).
+
+Why QuuBee is copyright-clean → <a class="about-link">Read the declaration</a>
+Attribution &amp; licenses for bundled assets → <a href="CREDITS.md">CREDITS.md</a></pre>
+            <canvas id="text-image" hidden></canvas>
+        </div>
+    </div>
+</div>
+<input id="file-input" type="file" accept=".lzh,.lha,.lzs,.zip,.com,.exe,.mag,.pi,.m,.d88,.d77,.d98,.88d,.98d,.fdi,.hdm,.xdf,.2hd,.dup,.flp,.dcp,.dcu">
+
+<!-- 宣言 (About) — 初回訪問時に自動表示 + ヘッダ About で随時再表示。
+     歓迎文 (#text-body) と同じく site copy は HTML 側に置く。表示は別窓ビューア流用。 -->
+<pre id="about-text" hidden>「QuuBee」は、PC-98のフリーソフト・同人ソフト文化を継承するための、
+ブラウザで動くプレイヤーです。
+
+対象は、かつて開発者自身の手で配布されたソフトやゲーム。
+同梱のマニュアルや、作者の心情が垣間見えるテキストまで含めた、
+「PC-98フリーソフト文化」の再体験を目指しました。
+
+市販ソフトの動作は目的ではありません。ディスクイメージから
+ブートする機構も、意図的に持たせませんでした。つまり、
+ブートを前提とする市販ソフトは原理的に動きません。
+
+DOSの振る舞いを実際のDOSを使わずに再実装し、BIOSも実際の
+BIOSの動作を模倣する仕組みを構築しました。画面のフォントは
+NECのROMから抜き出したものではなく、フリーフォント由来の
+代替ビットマップです。ハードウェアの再現は、オープンソースの
+エンジン（NP2kai）が担っています。つまり、このプレイヤーは、
+フリーなライセンスに基づくものだけで構成されています。
+そこで動くのは、あなたの手元にあるソフト、それだけです。
+
+「QuuBee」はエミュレータではありません。
+PC-98文化を継承し、再発見するためのツールです。
+
+────────────────────────────────────────
+
+QuuBee is a player that runs in your browser, made to carry
+on the culture of PC-98 freeware and doujin software.
+
+It is for the software and games once distributed by the
+developers' own hands. The aim is to relive the PC-98
+freeware culture as a whole — including the bundled manuals
+and the texts in which the authors' personalities still
+shine through.
+
+Running commercial software is not a goal. We also chose not
+to build any mechanism for booting disk images. In other
+words, commercial titles that require booting simply cannot
+run here.
+
+DOS behavior is re-implemented without using any real DOS,
+and the BIOS is built to imitate how the real one behaves.
+The on-screen font is not extracted from NEC's ROM but is a
+substitute bitmap derived from free fonts. The hardware is
+reproduced by NP2kai, an open-source engine. In other words,
+this player is built entirely from freely licensed
+components. What runs on it is the software in your own
+hands — that, and nothing else.
+
+QuuBee is not an emulator.
+It is a tool for inheriting and rediscovering the PC-98
+culture.
+
+────────────────────────────────────────
+
+構成要素とクレジット / Components &amp; credits:
+https://github.com/msonrm/quubee</pre>
+
+<div id="viewer-modal" hidden>
+    <div id="viewer-box">
+        <div id="viewer-head">
+            <span id="viewer-title"></span>
+            <button id="viewer-close" title="閉じる (Esc)">×</button>
+        </div>
+        <pre id="viewer-body"></pre>
+        <canvas id="viewer-canvas" hidden></canvas>
+    </div>
+</div>
+
+<!-- 音楽プレイヤーポップアップ (PMD .M)。クリーンな HTML プレイヤー。背後の PC-98 画面は暗転。 -->
+<div id="player-modal" hidden>
+    <div id="player-box">
+        <button id="player-close" title="閉じる = 停止 (Esc)">×</button>
+        <div id="player-now">♪ Now Playing</div>
+        <div id="player-info">
+            <div class="prow"><span class="plabel">File</span><span id="pf-file" class="pval"></span></div>
+            <div class="prow"><span class="plabel">Date</span><span id="pf-date" class="pval"></span></div>
+            <div class="prow"><span class="plabel">Title</span><span id="pf-title" class="pval pval-title"></span></div>
+            <div class="prow"><span class="plabel">Composer</span><span id="pf-composer" class="pval"></span></div>
+            <div class="prow"><span class="plabel">Arranger</span><span id="pf-arranger" class="pval"></span></div>
+            <div class="prow"><span class="plabel">Comment</span><span id="pf-comment" class="pval"></span></div>
+        </div>
+        <div id="player-time">0:00</div>
+        <div id="player-controls">
+            <button id="player-play">▶ Play</button>
+            <button id="player-pause">⏸ Pause</button>
+            <button id="player-stop">■ Stop</button>
+        </div>
+        <div id="player-driver">playing via KAJA PMD driver (HLE-DOS)</div>
+    </div>
+</div>
+
+<!-- 設定コントロールパネル。qbDebug の厳選を GUI 化。ラベルは英語 + 日本語併記。値の適用は bridge.js が
+     window.qbDebug.* 経由で行い、localStorage(quubee_settings_v1) に保存する。 -->
+<div id="settings-modal" hidden>
+    <div id="settings-box">
+        <button id="settings-close" title="閉じる / Close (Esc)">×</button>
+        <div id="settings-title">Settings<span class="ja">設定</span></div>
+
+        <div id="settings-body">
+        <div class="settings-group">
+            <h3>Sound<span class="ja">音</span></h3>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Volume<span class="ja">音量</span></div>
+                    <div class="set-desc">パート別の音量バランス<span class="en"> / Per-part volume balance</span></div>
+                </div>
+                <div class="set-ctl vol-grid">
+                    <label>FM</label><input id="set-vol-fm" type="range" min="0" max="128"><span class="val" id="val-vol-fm"></span>
+                    <label>SSG</label><input id="set-vol-ssg" type="range" min="0" max="128"><span class="val" id="val-vol-ssg"></span>
+                    <label>Rhythm</label><input id="set-vol-rhythm" type="range" min="0" max="128"><span class="val" id="val-vol-rhythm"></span>
+                    <label>ADPCM</label><input id="set-vol-adpcm" type="range" min="0" max="128"><span class="val" id="val-vol-adpcm"></span>
+                </div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">FM Engine<span class="ja">FM 音源</span><span class="next-run-badge">次の Run から / Next Run</span></div>
+                    <div class="set-desc">fmgen は実機 A/B で高音質<span class="en"> / fmgen sounds better; opngen is the classic</span></div>
+                </div>
+                <div class="set-ctl"><select id="set-fmgen"><option value="1">fmgen</option><option value="0">opngen</option></select></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">BEEP Boost<span class="ja">BEEP ブースト</span></div>
+                    <div class="set-desc">内蔵ブザーの効果音を増幅 (楽曲下で埋もれないように)<span class="en"> / Boost the built-in buzzer SE</span></div>
+                </div>
+                <div class="set-ctl"><input id="set-beepgain" type="range" min="100" max="383" step="1"><span class="val" id="val-beepgain"></span></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Sound Board<span class="ja">音源ボード</span><span class="next-run-badge">次の Run から / Next Run</span></div>
+                    <div class="set-desc">上ほど機能が乗る (上位は下位を含む)。Mate-X PCM は近代エンジンの PCM 再生に必要<span class="en"> / higher tiers include lower ones; Mate-X PCM needed for modern engines</span></div>
+                </div>
+                <div class="set-ctl"><select id="set-soundboard">
+                    <option value="matex">86 + ADPCM + Mate-X PCM</option>
+                    <option value="adpcm">86 + ADPCM (Chibi-oto)</option>
+                    <option value="86">86 FM only</option>
+                </select></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">MIDI Reverb<span class="ja">MIDI リバーブ</span></div>
+                    <div class="set-desc">MIDI 音源の GS リバーブ<span class="en"> / GS reverb for MIDI playback</span></div>
+                </div>
+                <div class="set-ctl"><input id="set-midifx" type="checkbox"></div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <h3>Speed<span class="ja">速度</span></h3>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">CPU Multiple<span class="ja">CPU 倍率</span></div>
+                    <div class="set-desc">上げると速いが、高すぎると音が詰まることがある<span class="en"> / Higher is faster; too high may stutter audio</span></div>
+                </div>
+                <div class="set-ctl"><input id="set-multiple" type="range" min="4" max="42" step="1"><span class="val" id="val-multiple"></span></div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <h3>Display<span class="ja">表示</span></h3>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">30 Lines<span class="ja">30 行表示</span><span class="next-run-badge">次の Run から / Next Run</span></div>
+                    <div class="set-desc">仮想 30 行 BIOS (対応ツールのみ)<span class="en"> / Virtual 30-line BIOS (for aware tools)</span></div>
+                </div>
+                <div class="set-ctl"><input id="set-lines30" type="checkbox"></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">POST Screen<span class="ja">起動 POST</span><span class="next-run-badge">次の Run から / Next Run</span></div>
+                    <div class="set-desc">起動時のメモリカウント + ピポ音を表示<span class="en"> / Show boot memory count and beep</span></div>
+                </div>
+                <div class="set-ctl"><input id="set-itfpost" type="checkbox"></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">FEP Style<span class="ja">FEP 表示</span></div>
+                    <div class="set-desc">日本語入力の未確定表示。WX 風=下線 / ATOK 風=反転<span class="en"> / Composition look: WX = underline, ATOK = reverse</span></div>
+                </div>
+                <div class="set-ctl"><select id="set-fepstyle"><option value="wx">WX</option><option value="atok">ATOK</option></select></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Kana Layout<span class="ja">かな配列</span></div>
+                    <div class="set-desc">日本語入力のかな配列。Romaji=内蔵。他は薙刀式/NICOLA/親指ぴゅん/月/AZIK/Colemak<span class="en"> / Kana input layout for FEP</span></div>
+                </div>
+                <div class="set-ctl"><select id="set-kanalayout">
+                    <option value="builtin">Romaji</option>
+                    <option value="naginata">Naginata 薙刀式</option>
+                    <option value="nicola">NICOLA 親指</option>
+                    <option value="oyayubi_pyun_1key">Oyayubi Pyun 親指ぴゅん</option>
+                    <option value="tsuki2-263">Tsuki 月2-263</option>
+                    <option value="azik">AZIK</option>
+                    <option value="romaji_colemak">Romaji (Colemak)</option>
+                </select></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Keyboard<span class="ja">キーボード</span></div>
+                    <div class="set-desc">手元の物理キーボード。親指キー等の割当が変わる (Romaji 内蔵には非適用)<span class="en"> / Physical keyboard for kana layouts</span></div>
+                </div>
+                <div class="set-ctl"><select id="set-kanaregion"><option value="us">US</option><option value="jis">JIS</option></select></div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <h3>Compatibility<span class="ja">互換</span></h3>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Y2K Clamp<span class="ja">Y2K クランプ</span><span class="next-run-badge">次の Run から / Next Run</span></div>
+                    <div class="set-desc">年を 1999 に丸め旧作のセーブ破壊を防ぐ。OFF で本当の日付<span class="en"> / Clamp year to 1999; OFF shows the real date</span></div>
+                </div>
+                <div class="set-ctl"><input id="set-y2k" type="checkbox"></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Mouse Dialect<span class="ja">マウス流派</span></div>
+                    <div class="set-desc">INT 33h ドライバの流儀。None は内蔵ドライバを無効化<span class="en"> / driver dialect; None disables the built-in driver</span></div>
+                </div>
+                <div class="set-ctl"><select id="set-mouse33"><option value="ms">MS</option><option value="nec">NEC</option><option value="off">None</option></select></div>
+            </div>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Verbose Log<span class="ja">診断ログ</span></div>
+                    <div class="set-desc">DevTools コンソールに診断ログを前面表示<span class="en"> / Show diagnostic logs in the console</span></div>
+                </div>
+                <div class="set-ctl"><input id="set-verbose" type="checkbox"></div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <h3>Appearance<span class="ja">外観</span></h3>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Light Mode<span class="ja">ライトモード</span></div>
+                    <div class="set-desc">画面まわりを白系に (ゲーム画面は不変)<span class="en"> / Light surroundings; game screen unchanged</span></div>
+                </div>
+                <div class="set-ctl"><input id="set-theme" type="checkbox"></div>
+            </div>
+        </div>
+
+        <div class="settings-group">
+            <h3>Gamepad<span class="ja">ゲームパッド</span></h3>
+            <div class="set-row">
+                <div class="set-main">
+                    <div class="set-label">Direction<span class="ja">方向（左手）</span></div>
+                    <div class="set-desc">十字キー / 左スティックの割当。斜めは同時押し<span class="en"> / D-pad and left stick</span></div>
+                </div>
+                <div class="set-ctl"><select id="set-pad-dir"><option value="arrow">Arrow / カーソル</option><option value="tenkey">Numpad 2468 / テンキー</option></select></div>
+            </div>
+            <div id="pad-live" class="pad-live">パッド未接続 / no gamepad</div>
+            <div id="pad-rows"></div>
+            <div class="pad-foot"><button id="pad-reset">パッド割当を既定に戻す / Reset gamepad</button></div>
+        </div>
+        </div><!-- /settings-body -->
+
+        <div class="set-foot">
+            <button id="settings-reset">Reset defaults<span class="ja">既定に戻す</span></button>
+            <button id="settings-done">Done<span class="ja">閉じる</span></button>
+        </div>
+    </div>
+</div>
+
+<script src="np2kai_core.js"></script>
+<script src="player/archive.js"></script>
+<script src="player/diskimage.js"></script>
+<script src="player/batscript.js"></script>
+<script src="player/magimage.js"></script>
+<script src="player/piimage.js"></script>
+<script src="player/pmdmeta.js"></script>
+<script src="assets/keymap-engine.js"></script>
+<script src="assets/hechima.js"></script>
+<script src="player/bridge.js"></script>
+
+<script>
+/* MY SUSANS v0.7.12：タイトル帯の再生曲名表示。
+   シンボルボタンiframeからの通知だけを受け、ゲーム本体の音声処理には触れない。 */
+(() => {
+    const trackEl = document.getElementById('my-now-playing-track');
+    if (!trackEl) return;
+
+    function fileNameFromUrl(value) {
+        try {
+            const clean = String(value || '').split('#')[0].split('?')[0];
+            return decodeURIComponent(clean.slice(clean.lastIndexOf('/') + 1)) || '再生中';
+        } catch (_) {
+            return '再生中';
+        }
+    }
+
+    window.addEventListener('message', (event) => {
+        if (!event.data) return;
+
+        if (event.data.type === 'PLIP_TRACK_PLAYING') {
+            trackEl.textContent = fileNameFromUrl(event.data.trackUrl);
+            return;
+        }
+
+        if (event.data.type === 'PLIP_BUTTON_CLICK') {
+            const state = Number(event.data.stateValue);
+            if (state === 0) trackEl.textContent = 'BGMを選曲中…';
+            else if (state === 1) trackEl.textContent = '主題歌を選曲中…';
+            else if (state === 2) trackEl.textContent = '音楽OFF';
+        }
+    });
+})();
+</script>
+
+<script>
+/* MY SUSANS v0.7.3：タイトル画面の不定期稲妻。
+   既存のQuuBee/Dante98処理とは独立し、タイトル表示中だけ演出する。 */
+(() => {
+    const layer = document.getElementById('susans-storm-layer');
+    const launcher = document.getElementById('my-launcher');
+    if (!layer || !launcher || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    const bolts = Array.from(layer.querySelectorAll('.susans-lightning-bolt'));
+    let lightningTimer = null;
+
+    function titleIsVisible() {
+        return !launcher.hidden &&
+               launcher.style.display !== 'none' &&
+               document.visibilityState === 'visible';
+    }
+
+    function fireLightning() {
+        if (titleIsVisible()) {
+            layer.classList.remove('is-flashing');
+            bolts.forEach(bolt => bolt.classList.remove('is-active'));
+
+            /* 同じ場所ばかり光らないよう、3本からランダムに1本を選択。 */
+            const bolt = bolts[Math.floor(Math.random() * bolts.length)];
+
+            /* animationを毎回確実に再始動させる。 */
+            void layer.offsetWidth;
+            layer.classList.add('is-flashing');
+            if (bolt) bolt.classList.add('is-active');
+
+            window.setTimeout(() => {
+                layer.classList.remove('is-flashing');
+                if (bolt) bolt.classList.remove('is-active');
+            }, 820);
+        }
+        scheduleLightning();
+    }
+
+    function scheduleLightning() {
+        window.clearTimeout(lightningTimer);
+        /* 約5.5～14.5秒。規則的に見えない間隔にする。 */
+        const delay = 5500 + Math.random() * 9000;
+        lightningTimer = window.setTimeout(fireLightning, delay);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') scheduleLightning();
+    });
+
+    scheduleLightning();
+})();
+</script>
+</body>
+</html>
