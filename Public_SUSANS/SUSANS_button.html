@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PLIP 3段階連動ボタン v5</title>
+<style>
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #020617;
+  color: #f8fafc;
+}
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: visible;
+  background: transparent;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Yu Gothic UI", "Meiryo", sans-serif;
+}
+.plip-wrap {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  user-select: none;
+}
+#plip-core-button {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 2px solid #FFD700;
+  border-radius: 18px;
+  cursor: pointer;
+  background: linear-gradient(135deg, #475569, #1e293b, #0f172a);
+  box-shadow: 0 0 28px #FFD70055, 0 18px 45px rgba(0,0,0,.5);
+  transition: border-color .2s, box-shadow .2s;
+  touch-action: manipulation;
+}
+#plip-stage, #plip-stage > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.plip-bubble {
+  display: block;
+  position: absolute;
+  top: calc(100% - 5px);
+  left: 0;
+  width: 100%;
+  z-index: 50;
+  padding: 0 1px;
+  pointer-events: none;
+}
+.plip-bubble svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+@keyframes plipNobleFloatSVG {
+  0%, 100% { transform: translate3d(0,0,0) rotate(.001deg); }
+  50% { transform: translate3d(0,2px,0) rotate(.001deg); }
+}
+@keyframes plipRainbowTextSVG {
+  0% { fill: #ff0055; filter: drop-shadow(0 0 3px rgba(255,0,85,.5)); }
+  14% { fill: #ff5500; }
+  28% { fill: #ffcc00; }
+  42% { fill: #00ff66; }
+  56% { fill: #00ccff; }
+  70% { fill: #3333ff; }
+  84% { fill: #9900ff; }
+  100% { fill: #ff0055; filter: drop-shadow(0 0 3px rgba(255,0,85,.5)); }
+}
+@keyframes plipBoltFlashSVG {
+  0%, 100% { opacity: .85; filter: drop-shadow(0 0 1px #fde047); }
+  50% { opacity: 1; filter: drop-shadow(0 0 5px #fde047); }
+}
+.animated-bubble-container-svg {
+  animation: plipNobleFloatSVG 3s infinite ease-in-out;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.rainbow-bulb-svg { animation: plipRainbowTextSVG 7s linear infinite; }
+.flashing-bolt-svg { animation: plipBoltFlashSVG 1.5s infinite ease-in-out; }
+.effect-press { animation: effectPress .26s ease-out; }
+.effect-pulse { animation: effectPulse .42s ease-out; }
+.effect-glow { animation: effectGlow .55s ease-out; }
+.effect-shake { animation: effectShake .42s ease-out; }
+.effect-flash { animation: effectFlash .42s ease-out; }
+@keyframes effectPress {
+  0% { transform: scale(1) translateY(0); }
+  45% { transform: scale(.94) translateY(8px); filter: brightness(1.25); }
+  100% { transform: scale(1) translateY(0); }
+}
+@keyframes effectPulse {
+  0% { transform: scale(1); }
+  42% { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@keyframes effectGlow {
+  0% { filter: brightness(1); }
+  45% { filter: brightness(1.8) saturate(1.35); }
+  100% { filter: brightness(1); }
+}
+@keyframes effectShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-10px) rotate(-1deg); }
+  40% { transform: translateX(9px) rotate(1deg); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(4px); }
+}
+@keyframes effectFlash {
+  0% { opacity: 1; }
+  35% { opacity: .18; filter: brightness(2.5); }
+  100% { opacity: 1; }
+}
+#plip-toast {
+  display: none;
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 1000;
+  max-width: min(390px, calc(100vw - 36px));
+  padding: 12px 15px;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #f8fafc;
+  box-shadow: 0 14px 35px rgba(0,0,0,.45);
+  opacity: 0;
+  transform: translateY(-16px);
+  pointer-events: none;
+  transition: .25s;
+  font-size: 14px;
+}
+#plip-toast.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+</style>
+</head>
+<body>
+<div class="plip-wrap">
+  <button id="plip-core-button" type="button" aria-label="PLIP 3段階連動ボタン">
+    <span id="plip-stage"></span>
+  </button>
+  <div class="plip-bubble" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 35">
+            <g class="animated-bubble-container-svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
+              <path d="M 6 8 H 42 L 48 3 L 54 8 H 90 A 4 4 0 0 1 94 12 V 29 A 4 4 0 0 1 90 33 H 6 A 4 4 0 0 1 2 29 V 12 A 4 4 0 0 1 6 8 Z" fill="#151d30" stroke="#f59e0b" stroke-width="1.2" stroke-opacity="0.85" filter="drop-shadow(0 3px 6px rgba(0,0,0,0.4))"></path>
+              <g transform="translate(6, 11) scale(0.85)">
+                <g stroke="#fbbf24" stroke-linecap="round" stroke-width="1.2" opacity="0.55">
+                  <line x1="8" y1="1" x2="8" y2="3"></line>
+                  <line x1="3" y1="3" x2="4.5" y2="4.5"></line>
+                  <line x1="1" y1="8" x2="3" y2="8"></line>
+                  <line x1="3" y1="13" x2="4.5" y2="11.5"></line>
+                  <line x1="13" y1="11.5" x2="11.5" y2="10"></line>
+                  <line x1="15" y1="8" x2="13" y2="8"></line>
+                  <line x1="13" y1="3" x2="11.5" y2="4.5"></line>
+                </g>
+                <path class="rainbow-bulb-svg" d="M8,2 C4.7,2 2,4.7 2,8 C2,10.1 3.1,11.2 4,12.1 C4.6,12.7 4.7,13.2 4.7,13.8 L11.3,13.8 C11.3,13.2 11.4,12.7 12,12.1 C12.9,11.2 14,10.1 14,8 C14,4.7 11.3,2 8,2 Z" fill="#94a3b8"></path>
+                <path d="M5.5,9.5 L7,6.5 L9,6.5 L10.5,9.5" fill="none" stroke="#fff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.95" style="filter:drop-shadow(0 0 1px #fff)"></path>
+                <path d="M4.7,13.8 H11.3 V15.5 C11.3,16 10.9,16.5 10.3,16.5 H5.7 C5.1,16.5 4.7,16 4.7,15.5 Z" fill="#94a3b8" stroke="#334155" stroke-width="0.5"></path>
+                <path d="M5.5,16.5 H10.5 V17.5 C10.5,18 10,18.5 9.5,18.5 H6.5 C6,18.5 5.5,18 5.5,17.5 Z" fill="#475569"></path>
+                <line x1="5" y1="14.8" x2="11" y2="14.8" stroke="#334155" stroke-width="0.8"></line>
+                <line x1="5.3" y1="15.8" x2="10.7" y2="15.8" stroke="#334155" stroke-width="0.8"></line>
+                <polygon class="flashing-bolt-svg" points="16,0.5 8,8.5 12,8.5 10,15.5 18,6.5 14,6.5" fill="#fde047"></polygon>
+              </g>
+              <text x="58" y="24" fill="#fbbf24" font-family="Arial,'Yu Gothic UI',Meiryo,sans-serif" font-size="11" font-weight="900" letter-spacing="0.03em" text-anchor="middle">PLIP !!</text>
+            </g>
+          </svg>
+        </div>
+</div>
+<div id="plip-toast" role="status"></div>
+<script>
+(() => {
+  const STATES = [{"svg":"\u003csvg style=\"width:100%;height:100%;display:block\" preserveAspectRatio=\"xMidYMid meet\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 640\"  >\n  \u003cdefs>\n    \u003cradialGradient id=\"bg\" cx=\"50%\" cy=\"50%\" r=\"70%\">\n      \u003cstop offset=\"0%\" stop-color=\"#0b1830\"/>\n      \u003cstop offset=\"55%\" stop-color=\"#040914\"/>\n      \u003cstop offset=\"100%\" stop-color=\"#01030a\"/>\n    \u003c/radialGradient>\n    \u003cradialGradient id=\"disc\" cx=\"50%\" cy=\"45%\" r=\"60%\">\n      \u003cstop offset=\"0%\" stop-color=\"#112848\"/>\n      \u003cstop offset=\"72%\" stop-color=\"#07111f\"/>\n      \u003cstop offset=\"100%\" stop-color=\"#02060c\"/>\n    \u003c/radialGradient>\n    \u003cfilter id=\"emblemGlow\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">\n      \u003cfeGaussianBlur stdDeviation=\"10\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n    \u003cfilter id=\"holySwordGlow\" x=\"-60%\" y=\"-60%\" width=\"220%\" height=\"220%\">\n      \u003cfeGaussianBlur stdDeviation=\"8\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n    \u003cfilter id=\"darkSwordGlow\" x=\"-60%\" y=\"-60%\" width=\"220%\" height=\"220%\">\n      \u003cfeGaussianBlur stdDeviation=\"9\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n  \u003c/defs>\n\n  \u003crect width=\"640\" height=\"640\" fill=\"url(#bg)\"/>\n  \u003ccircle cx=\"440.0\" cy=\"320.0\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"0.00s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"210.1\" cy=\"420.7\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-0.17s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"335.5\" cy=\"142.7\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-0.34s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"446.0\" cy=\"484.2\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-0.51s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"87.6\" cy=\"279.0\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.70s\" begin=\"-0.68s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"543.5\" cy=\"177.6\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.25s\" begin=\"-0.85s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"243.9\" cy=\"604.0\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.80s\" begin=\"-1.02s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"254.0\" cy=\"193.2\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"-1.19s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"481.6\" cy=\"378.8\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-1.36s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"134.3\" cy=\"396.9\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-1.53s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"417.2\" cy=\"111.5\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-1.70s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"397.9\" cy=\"567.0\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.70s\" begin=\"-1.87s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"70.6\" cy=\"176.0\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.25s\" begin=\"-2.04s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"453.8\" cy=\"290.3\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.80s\" begin=\"-2.21s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"224.8\" cy=\"456.0\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"-2.38s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"294.5\" cy=\"126.7\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-2.55s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"491.6\" cy=\"464.0\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-2.72s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"67.2\" cy=\"331.0\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-2.89s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\n\n  \u003cg transform=\"translate(320 320) scale(1.25) translate(-320 -320)\" filter=\"url(#emblemGlow)\">\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"239\" fill=\"#02060b\" stroke=\"#5aa7d9\" stroke-width=\"4\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"222\" fill=\"url(#disc)\" stroke=\"#bfefff\" stroke-width=\"2\" opacity=\".98\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"194\" fill=\"none\" stroke=\"#5aa7d9\" stroke-width=\"6\" opacity=\".75\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"172\" fill=\"none\" stroke=\"#d9f7ff\" stroke-width=\"1.5\" opacity=\".3\" stroke-dasharray=\"5 9\"/>\n    \u003ctext x=\"320.00\" y=\"113.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(0 320.00 113.00)\">◈\u003c/text>\u003ctext x=\"366.06\" y=\"118.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(12.857142857142861 366.06 118.19)\">◇\u003c/text>\u003ctext x=\"409.81\" y=\"133.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(25.714285714285722 409.81 133.50)\">✦\u003c/text>\u003ctext x=\"449.06\" y=\"158.16\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(38.57142857142857 449.06 158.16)\">⋇\u003c/text>\u003ctext x=\"481.84\" y=\"190.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(51.42857142857143 481.84 190.94)\">⌖\u003c/text>\u003ctext x=\"506.50\" y=\"230.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(64.28571428571429 506.50 230.19)\">✧\u003c/text>\u003ctext x=\"521.81\" y=\"273.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(77.14285714285714 521.81 273.94)\">⟡\u003c/text>\u003ctext x=\"527.00\" y=\"320.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(90 527.00 320.00)\">⋈\u003c/text>\u003ctext x=\"521.81\" y=\"366.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(102.85714285714286 521.81 366.06)\">✥\u003c/text>\u003ctext x=\"506.50\" y=\"409.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(115.71428571428572 506.50 409.81)\">⌘\u003c/text>\u003ctext x=\"481.84\" y=\"449.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(128.57142857142858 481.84 449.06)\">✣\u003c/text>\u003ctext x=\"449.06\" y=\"481.84\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(141.42857142857144 449.06 481.84)\">◬\u003c/text>\u003ctext x=\"409.81\" y=\"506.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(154.28571428571428 409.81 506.50)\">◊\u003c/text>\u003ctext x=\"366.06\" y=\"521.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(167.14285714285714 366.06 521.81)\">⟁\u003c/text>\u003ctext x=\"320.00\" y=\"527.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(180 320.00 527.00)\">◈\u003c/text>\u003ctext x=\"273.94\" y=\"521.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(192.85714285714286 273.94 521.81)\">◇\u003c/text>\u003ctext x=\"230.19\" y=\"506.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(205.71428571428572 230.19 506.50)\">✦\u003c/text>\u003ctext x=\"190.94\" y=\"481.84\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(218.57142857142858 190.94 481.84)\">⋇\u003c/text>\u003ctext x=\"158.16\" y=\"449.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(231.42857142857144 158.16 449.06)\">⌖\u003c/text>\u003ctext x=\"133.50\" y=\"409.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(244.2857142857143 133.50 409.81)\">✧\u003c/text>\u003ctext x=\"118.19\" y=\"366.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(257.14285714285717 118.19 366.06)\">⟡\u003c/text>\u003ctext x=\"113.00\" y=\"320.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(270 113.00 320.00)\">⋈\u003c/text>\u003ctext x=\"118.19\" y=\"273.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(282.8571428571429 118.19 273.94)\">✥\u003c/text>\u003ctext x=\"133.50\" y=\"230.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(295.7142857142857 133.50 230.19)\">⌘\u003c/text>\u003ctext x=\"158.16\" y=\"190.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(308.57142857142856 158.16 190.94)\">✣\u003c/text>\u003ctext x=\"190.94\" y=\"158.16\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(321.42857142857144 190.94 158.16)\">◬\u003c/text>\u003ctext x=\"230.19\" y=\"133.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(334.2857142857143 230.19 133.50)\">◊\u003c/text>\u003ctext x=\"273.94\" y=\"118.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(347.14285714285717 273.94 118.19)\">⟁\u003c/text>\n    \u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#d9f7ff\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(0 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(15 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(30 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(45 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(60 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(75 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#d9f7ff\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(90 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(105 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(120 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(135 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(150 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(165 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#d9f7ff\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(180 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(195 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(210 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(225 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(240 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(255 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#d9f7ff\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(270 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(285 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(300 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(315 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(330 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(345 320 320)\"/>\n\n    \u003cg opacity=\".55\">\n      \u003cpath d=\"M320,131 L338,180 L320,198 L302,180 Z\" fill=\"#d9f7ff\"/>\n      \u003cpath d=\"M509,320 L460,338 L442,320 L460,302 Z\" fill=\"#d9f7ff\"/>\n      \u003cpath d=\"M320,509 L302,460 L320,442 L338,460 Z\" fill=\"#d9f7ff\"/>\n      \u003cpath d=\"M131,320 L180,302 L198,320 L180,338 Z\" fill=\"#d9f7ff\"/>\n    \u003c/g>\n\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"68\" fill=\"#050a14\" stroke=\"#bfefff\" stroke-width=\"3\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"41\" fill=\"#5aa7d9\" opacity=\".18\"/>\n    \u003cpath d=\"M320,280 L340,320 L320,360 L300,320 Z\" fill=\"none\" stroke=\"#bfefff\" stroke-width=\"3\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"10\" fill=\"#bfefff\"/>\n\n    \u003cg id=\"timeHand\">\n      \u003cline x1=\"320\" y1=\"320\" x2=\"320\" y2=\"115\"\n        stroke=\"#bfefff\" stroke-width=\"7\" stroke-linecap=\"round\"/>\n      \u003cpath d=\"M320 97 L309 123 L331 123 Z\" fill=\"#bfefff\"/>\n      \u003cline x1=\"320\" y1=\"320\" x2=\"320\" y2=\"412\"\n        stroke=\"#5aa7d9\" stroke-width=\"4\" stroke-linecap=\"round\" opacity=\".8\"/>\n      \u003canimateTransform attributeName=\"transform\" type=\"rotate\"\n      from=\"0 320 320\" to=\"360 320 320\" dur=\"47s\"\n      repeatCount=\"indefinite\"/>\n    \u003c/g>\n  \u003c/g>\n\n  \n  \u003cg transform=\"translate(320 320) rotate(0) scale(1.35)\" filter=\"url(#holySwordGlow)\">\n    \u003ccircle cx=\"0\" cy=\"-162\" r=\"13\" fill=\"#eafaff\" stroke=\"#66cfff\" stroke-width=\"4\"/>\n    \u003crect x=\"-9\" y=\"-151\" width=\"18\" height=\"54\" rx=\"6\" fill=\"#111827\" stroke=\"#99dfff\" stroke-width=\"3\"/>\n    \u003cpath d=\"M-55,-96 Q0,-78 55,-96 Q45,-79 18,-75 L0,-62 L-18,-75 Q-45,-79 -55,-96Z\"\n          fill=\"#99dfff\" stroke=\"#66cfff\" stroke-width=\"2\"/>\n    \u003cpath d=\"M-16,-74 L16,-74 L12,120 L0,166 L-12,120 Z\"\n          fill=\"#dff8ff\" stroke=\"#66cfff\" stroke-width=\"3\"/>\n    \u003cpath d=\"M0,-70 L0,152\" stroke=\"#66cfff\" stroke-width=\"5\" opacity=\".92\"/>\n    \u003cpath d=\"M-5,-55 L0,-30 L5,-55 L0,-5 Z\" fill=\"#ffffff\" opacity=\".85\"/>\n  \u003c/g>\n\u003c/svg>","color":"#FFD700","musicMode":"ambient"},{"svg":"\u003csvg style=\"width:100%;height:100%;display:block\" preserveAspectRatio=\"xMidYMid meet\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 640\"  >\n  \u003cdefs>\n    \u003cradialGradient id=\"bg\" cx=\"50%\" cy=\"50%\" r=\"70%\">\n      \u003cstop offset=\"0%\" stop-color=\"#0b1830\"/>\n      \u003cstop offset=\"55%\" stop-color=\"#040914\"/>\n      \u003cstop offset=\"100%\" stop-color=\"#01030a\"/>\n    \u003c/radialGradient>\n    \u003cradialGradient id=\"disc\" cx=\"50%\" cy=\"45%\" r=\"60%\">\n      \u003cstop offset=\"0%\" stop-color=\"#112848\"/>\n      \u003cstop offset=\"72%\" stop-color=\"#07111f\"/>\n      \u003cstop offset=\"100%\" stop-color=\"#02060c\"/>\n    \u003c/radialGradient>\n    \u003cfilter id=\"emblemGlow\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">\n      \u003cfeGaussianBlur stdDeviation=\"16\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n    \u003cfilter id=\"holySwordGlow\" x=\"-60%\" y=\"-60%\" width=\"220%\" height=\"220%\">\n      \u003cfeGaussianBlur stdDeviation=\"12.8\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n    \u003cfilter id=\"darkSwordGlow\" x=\"-60%\" y=\"-60%\" width=\"220%\" height=\"220%\">\n      \u003cfeGaussianBlur stdDeviation=\"14.4\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n  \u003c/defs>\n\n  \u003crect width=\"640\" height=\"640\" fill=\"url(#bg)\"/>\n  \u003ccircle cx=\"440.0\" cy=\"320.0\" r=\"1.20\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"0.00s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"210.1\" cy=\"420.7\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-0.17s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"335.5\" cy=\"142.7\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-0.34s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"446.0\" cy=\"484.2\" r=\"2.55\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-0.51s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"87.6\" cy=\"279.0\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.70s\" begin=\"-0.68s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"543.5\" cy=\"177.6\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.25s\" begin=\"-0.85s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"243.9\" cy=\"604.0\" r=\"2.10\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.80s\" begin=\"-1.02s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"254.0\" cy=\"193.2\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"-1.19s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"481.6\" cy=\"378.8\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-1.36s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"134.3\" cy=\"396.9\" r=\"1.65\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-1.53s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"417.2\" cy=\"111.5\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-1.70s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"397.9\" cy=\"567.0\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.70s\" begin=\"-1.87s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"70.6\" cy=\"176.0\" r=\"1.20\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.25s\" begin=\"-2.04s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"453.8\" cy=\"290.3\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.80s\" begin=\"-2.21s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"224.8\" cy=\"456.0\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"-2.38s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"294.5\" cy=\"126.7\" r=\"2.55\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-2.55s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"491.6\" cy=\"464.0\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-2.72s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"67.2\" cy=\"331.0\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-2.89s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"519.4\" cy=\"120.6\" r=\"2.10\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.70s\" begin=\"-3.06s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"314.3\" cy=\"450.9\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.25s\" begin=\"-3.23s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"217.2\" cy=\"197.4\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.80s\" begin=\"-3.40s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"507.4\" cy=\"344.7\" r=\"1.65\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"-3.57s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"141.4\" cy=\"445.0\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-3.74s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"373.5\" cy=\"78.9\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-3.91s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"458.0\" cy=\"559.0\" r=\"1.20\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-4.08s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"200.8\" cy=\"282.4\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.70s\" begin=\"-4.25s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"459.6\" cy=\"254.9\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.25s\" begin=\"-4.42s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"250.0\" cy=\"489.1\" r=\"2.55\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.80s\" begin=\"-4.59s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"247.5\" cy=\"120.8\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"-4.76s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"533.8\" cy=\"431.3\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-4.93s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"59.2\" cy=\"389.9\" r=\"2.10\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-5.10s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"480.7\" cy=\"67.8\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-5.27s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"345.7\" cy=\"465.8\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.70s\" begin=\"-5.44s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"179.6\" cy=\"212.2\" r=\"1.65\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.25s\" begin=\"-5.61s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"525.2\" cy=\"302.0\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.80s\" begin=\"-5.78s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"161.2\" cy=\"493.3\" r=\"2.55\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"3.50s\" begin=\"-5.95s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"320.0\" cy=\"56.0\" r=\"1.20\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.05s\" begin=\"-6.12s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"517.9\" cy=\"536.0\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"4.60s\" begin=\"-6.29s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"178.5\" cy=\"307.6\" r=\"2.10\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.15s\" begin=\"-6.46s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"455.7\" cy=\"215.9\" r=\"2.55\"\n      fill=\"#ff334f\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"5.70s\" begin=\"-6.63s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"285.3\" cy=\"517.0\" r=\"1.20\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.25s\" begin=\"-6.80s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\u003ccircle cx=\"197.0\" cy=\"126.9\" r=\"1.65\"\n      fill=\"#66cfff\" opacity=\".35\">\n      \u003canimate attributeName=\"opacity\" values=\".08;.8;.08\" dur=\"6.80s\" begin=\"-6.97s\" repeatCount=\"indefinite\"/>\n    \u003c/circle>\n\n  \u003cg transform=\"translate(320 320) scale(1.25) translate(-320 -320)\" filter=\"url(#emblemGlow)\">\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"239\" fill=\"#02060b\" stroke=\"#5aa7d9\" stroke-width=\"4\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"222\" fill=\"url(#disc)\" stroke=\"#bfefff\" stroke-width=\"2\" opacity=\".98\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"194\" fill=\"none\" stroke=\"#5aa7d9\" stroke-width=\"6\" opacity=\".75\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"172\" fill=\"none\" stroke=\"#d9f7ff\" stroke-width=\"1.5\" opacity=\".3\" stroke-dasharray=\"5 9\"/>\n    \u003ctext x=\"320.00\" y=\"113.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(0 320.00 113.00)\">◈\u003c/text>\u003ctext x=\"366.06\" y=\"118.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(12.857142857142861 366.06 118.19)\">◇\u003c/text>\u003ctext x=\"409.81\" y=\"133.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(25.714285714285722 409.81 133.50)\">✦\u003c/text>\u003ctext x=\"449.06\" y=\"158.16\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(38.57142857142857 449.06 158.16)\">⋇\u003c/text>\u003ctext x=\"481.84\" y=\"190.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(51.42857142857143 481.84 190.94)\">⌖\u003c/text>\u003ctext x=\"506.50\" y=\"230.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(64.28571428571429 506.50 230.19)\">✧\u003c/text>\u003ctext x=\"521.81\" y=\"273.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(77.14285714285714 521.81 273.94)\">⟡\u003c/text>\u003ctext x=\"527.00\" y=\"320.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(90 527.00 320.00)\">⋈\u003c/text>\u003ctext x=\"521.81\" y=\"366.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(102.85714285714286 521.81 366.06)\">✥\u003c/text>\u003ctext x=\"506.50\" y=\"409.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(115.71428571428572 506.50 409.81)\">⌘\u003c/text>\u003ctext x=\"481.84\" y=\"449.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(128.57142857142858 481.84 449.06)\">✣\u003c/text>\u003ctext x=\"449.06\" y=\"481.84\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(141.42857142857144 449.06 481.84)\">◬\u003c/text>\u003ctext x=\"409.81\" y=\"506.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(154.28571428571428 409.81 506.50)\">◊\u003c/text>\u003ctext x=\"366.06\" y=\"521.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(167.14285714285714 366.06 521.81)\">⟁\u003c/text>\u003ctext x=\"320.00\" y=\"527.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(180 320.00 527.00)\">◈\u003c/text>\u003ctext x=\"273.94\" y=\"521.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(192.85714285714286 273.94 521.81)\">◇\u003c/text>\u003ctext x=\"230.19\" y=\"506.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(205.71428571428572 230.19 506.50)\">✦\u003c/text>\u003ctext x=\"190.94\" y=\"481.84\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(218.57142857142858 190.94 481.84)\">⋇\u003c/text>\u003ctext x=\"158.16\" y=\"449.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(231.42857142857144 158.16 449.06)\">⌖\u003c/text>\u003ctext x=\"133.50\" y=\"409.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(244.2857142857143 133.50 409.81)\">✧\u003c/text>\u003ctext x=\"118.19\" y=\"366.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(257.14285714285717 118.19 366.06)\">⟡\u003c/text>\u003ctext x=\"113.00\" y=\"320.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(270 113.00 320.00)\">⋈\u003c/text>\u003ctext x=\"118.19\" y=\"273.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(282.8571428571429 118.19 273.94)\">✥\u003c/text>\u003ctext x=\"133.50\" y=\"230.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(295.7142857142857 133.50 230.19)\">⌘\u003c/text>\u003ctext x=\"158.16\" y=\"190.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(308.57142857142856 158.16 190.94)\">✣\u003c/text>\u003ctext x=\"190.94\" y=\"158.16\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(321.42857142857144 190.94 158.16)\">◬\u003c/text>\u003ctext x=\"230.19\" y=\"133.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(334.2857142857143 230.19 133.50)\">◊\u003c/text>\u003ctext x=\"273.94\" y=\"118.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#d9f7ff\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(347.14285714285717 273.94 118.19)\">⟁\u003c/text>\n    \u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#d9f7ff\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(0 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(15 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(30 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(45 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(60 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(75 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#d9f7ff\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(90 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(105 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(120 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(135 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(150 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(165 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#d9f7ff\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(180 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(195 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(210 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(225 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(240 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(255 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#d9f7ff\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(270 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(285 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(300 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(315 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(330 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#d9f7ff\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(345 320 320)\"/>\n\n    \u003cg opacity=\".55\">\n      \u003cpath d=\"M320,131 L338,180 L320,198 L302,180 Z\" fill=\"#d9f7ff\"/>\n      \u003cpath d=\"M509,320 L460,338 L442,320 L460,302 Z\" fill=\"#d9f7ff\"/>\n      \u003cpath d=\"M320,509 L302,460 L320,442 L338,460 Z\" fill=\"#d9f7ff\"/>\n      \u003cpath d=\"M131,320 L180,302 L198,320 L180,338 Z\" fill=\"#d9f7ff\"/>\n    \u003c/g>\n\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"68\" fill=\"#050a14\" stroke=\"#bfefff\" stroke-width=\"3\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"41\" fill=\"#5aa7d9\" opacity=\".18\"/>\n    \u003cpath d=\"M320,280 L340,320 L320,360 L300,320 Z\" fill=\"none\" stroke=\"#bfefff\" stroke-width=\"3\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"10\" fill=\"#bfefff\"/>\n\n    \u003cg id=\"timeHand\">\n      \u003cline x1=\"320\" y1=\"320\" x2=\"320\" y2=\"115\"\n        stroke=\"#bfefff\" stroke-width=\"7\" stroke-linecap=\"round\"/>\n      \u003cpath d=\"M320 97 L309 123 L331 123 Z\" fill=\"#bfefff\"/>\n      \u003cline x1=\"320\" y1=\"320\" x2=\"320\" y2=\"412\"\n        stroke=\"#5aa7d9\" stroke-width=\"4\" stroke-linecap=\"round\" opacity=\".8\"/>\n      \u003canimateTransform attributeName=\"transform\" type=\"rotate\"\n      values=\"-36 320 320; 36 320 320; -16.2 320 320; 25.919999999999998 320 320; -36 320 320\"\n      keyTimes=\"0;.28;.52;.78;1\"\n      dur=\"11s\" repeatCount=\"indefinite\"/>\n    \u003c/g>\n  \u003c/g>\n\n  \n  \u003cg transform=\"translate(320 320) rotate(-55) scale(1.35)\" filter=\"url(#holySwordGlow)\">\n    \u003ccircle cx=\"0\" cy=\"-162\" r=\"13\" fill=\"#eafaff\" stroke=\"#66cfff\" stroke-width=\"4\"/>\n    \u003crect x=\"-9\" y=\"-151\" width=\"18\" height=\"54\" rx=\"6\" fill=\"#111827\" stroke=\"#99dfff\" stroke-width=\"3\"/>\n    \u003cpath d=\"M-55,-96 Q0,-78 55,-96 Q45,-79 18,-75 L0,-62 L-18,-75 Q-45,-79 -55,-96Z\"\n          fill=\"#99dfff\" stroke=\"#66cfff\" stroke-width=\"2\"/>\n    \u003cpath d=\"M-16,-74 L16,-74 L12,120 L0,166 L-12,120 Z\"\n          fill=\"#dff8ff\" stroke=\"#66cfff\" stroke-width=\"3\"/>\n    \u003cpath d=\"M0,-70 L0,152\" stroke=\"#66cfff\" stroke-width=\"5\" opacity=\".92\"/>\n    \u003cpath d=\"M-5,-55 L0,-30 L5,-55 L0,-5 Z\" fill=\"#ffffff\" opacity=\".85\"/>\n  \u003c/g>\n  \u003cg transform=\"translate(320 320) rotate(55) scale(1.35)\" filter=\"url(#darkSwordGlow)\">\n    \u003ccircle cx=\"0\" cy=\"-162\" r=\"13\" fill=\"#35070f\" stroke=\"#ff334f\" stroke-width=\"4\"/>\n    \u003crect x=\"-9\" y=\"-151\" width=\"18\" height=\"54\" rx=\"6\" fill=\"#111827\" stroke=\"#71111f\" stroke-width=\"3\"/>\n    \u003cpath d=\"M-55,-96 Q0,-78 55,-96 Q45,-79 18,-75 L0,-62 L-18,-75 Q-45,-79 -55,-96Z\"\n          fill=\"#71111f\" stroke=\"#ff334f\" stroke-width=\"2\"/>\n    \u003cpath d=\"M-16,-74 L16,-74 L12,120 L0,166 L-12,120 Z\"\n          fill=\"#1b0b12\" stroke=\"#ff334f\" stroke-width=\"3\"/>\n    \u003cpath d=\"M0,-70 L0,152\" stroke=\"#ff334f\" stroke-width=\"5\" opacity=\".92\"/>\n    \u003cpath d=\"M0,-48 L-4,-22 L5,2 L-3,35 L5,68 L-2,102\"\n               fill=\"none\" stroke=\"#ff334f\" stroke-width=\"4\" stroke-linecap=\"round\"/>\n  \u003c/g>\n\u003c/svg>","color":"#E2E8F0","musicMode":"theme"},{"svg":"\u003csvg style=\"width:100%;height:100%;display:block\" preserveAspectRatio=\"xMidYMid meet\" xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 640 640\"  >\n  \u003cdefs>\n    \u003cradialGradient id=\"bg\" cx=\"50%\" cy=\"50%\" r=\"70%\">\n      \u003cstop offset=\"0%\" stop-color=\"#0b1830\"/>\n      \u003cstop offset=\"55%\" stop-color=\"#040914\"/>\n      \u003cstop offset=\"100%\" stop-color=\"#01030a\"/>\n    \u003c/radialGradient>\n    \u003cradialGradient id=\"disc\" cx=\"50%\" cy=\"45%\" r=\"60%\">\n      \u003cstop offset=\"0%\" stop-color=\"#112848\"/>\n      \u003cstop offset=\"72%\" stop-color=\"#07111f\"/>\n      \u003cstop offset=\"100%\" stop-color=\"#02060c\"/>\n    \u003c/radialGradient>\n    \u003cfilter id=\"emblemGlow\" x=\"-50%\" y=\"-50%\" width=\"200%\" height=\"200%\">\n      \u003cfeGaussianBlur stdDeviation=\"2\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n    \u003cfilter id=\"holySwordGlow\" x=\"-60%\" y=\"-60%\" width=\"220%\" height=\"220%\">\n      \u003cfeGaussianBlur stdDeviation=\"3\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n    \u003cfilter id=\"darkSwordGlow\" x=\"-60%\" y=\"-60%\" width=\"220%\" height=\"220%\">\n      \u003cfeGaussianBlur stdDeviation=\"3\" result=\"b\"/>\n      \u003cfeMerge>\u003cfeMergeNode in=\"b\"/>\u003cfeMergeNode in=\"SourceGraphic\"/>\u003c/feMerge>\n    \u003c/filter>\n  \u003c/defs>\n\n  \u003crect width=\"640\" height=\"640\" fill=\"url(#bg)\"/>\n  \n\n  \u003cg transform=\"translate(320 320) scale(1.25) translate(-320 -320)\" filter=\"url(#emblemGlow)\">\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"239\" fill=\"#02060b\" stroke=\"#3d6e8f\" stroke-width=\"4\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"222\" fill=\"url(#disc)\" stroke=\"#bfefff\" stroke-width=\"2\" opacity=\".98\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"194\" fill=\"none\" stroke=\"#3d6e8f\" stroke-width=\"6\" opacity=\".75\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"172\" fill=\"none\" stroke=\"#b8cfd5\" stroke-width=\"1.5\" opacity=\".3\" stroke-dasharray=\"5 9\"/>\n    \u003ctext x=\"320.00\" y=\"113.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(0 320.00 113.00)\">◈\u003c/text>\u003ctext x=\"366.06\" y=\"118.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(12.857142857142861 366.06 118.19)\">◇\u003c/text>\u003ctext x=\"409.81\" y=\"133.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(25.714285714285722 409.81 133.50)\">✦\u003c/text>\u003ctext x=\"449.06\" y=\"158.16\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(38.57142857142857 449.06 158.16)\">⋇\u003c/text>\u003ctext x=\"481.84\" y=\"190.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(51.42857142857143 481.84 190.94)\">⌖\u003c/text>\u003ctext x=\"506.50\" y=\"230.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(64.28571428571429 506.50 230.19)\">✧\u003c/text>\u003ctext x=\"521.81\" y=\"273.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(77.14285714285714 521.81 273.94)\">⟡\u003c/text>\u003ctext x=\"527.00\" y=\"320.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(90 527.00 320.00)\">⋈\u003c/text>\u003ctext x=\"521.81\" y=\"366.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(102.85714285714286 521.81 366.06)\">✥\u003c/text>\u003ctext x=\"506.50\" y=\"409.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(115.71428571428572 506.50 409.81)\">⌘\u003c/text>\u003ctext x=\"481.84\" y=\"449.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(128.57142857142858 481.84 449.06)\">✣\u003c/text>\u003ctext x=\"449.06\" y=\"481.84\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(141.42857142857144 449.06 481.84)\">◬\u003c/text>\u003ctext x=\"409.81\" y=\"506.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(154.28571428571428 409.81 506.50)\">◊\u003c/text>\u003ctext x=\"366.06\" y=\"521.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(167.14285714285714 366.06 521.81)\">⟁\u003c/text>\u003ctext x=\"320.00\" y=\"527.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(180 320.00 527.00)\">◈\u003c/text>\u003ctext x=\"273.94\" y=\"521.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(192.85714285714286 273.94 521.81)\">◇\u003c/text>\u003ctext x=\"230.19\" y=\"506.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(205.71428571428572 230.19 506.50)\">✦\u003c/text>\u003ctext x=\"190.94\" y=\"481.84\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(218.57142857142858 190.94 481.84)\">⋇\u003c/text>\u003ctext x=\"158.16\" y=\"449.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(231.42857142857144 158.16 449.06)\">⌖\u003c/text>\u003ctext x=\"133.50\" y=\"409.81\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(244.2857142857143 133.50 409.81)\">✧\u003c/text>\u003ctext x=\"118.19\" y=\"366.06\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(257.14285714285717 118.19 366.06)\">⟡\u003c/text>\u003ctext x=\"113.00\" y=\"320.00\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(270 113.00 320.00)\">⋈\u003c/text>\u003ctext x=\"118.19\" y=\"273.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(282.8571428571429 118.19 273.94)\">✥\u003c/text>\u003ctext x=\"133.50\" y=\"230.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(295.7142857142857 133.50 230.19)\">⌘\u003c/text>\u003ctext x=\"158.16\" y=\"190.94\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(308.57142857142856 158.16 190.94)\">✣\u003c/text>\u003ctext x=\"190.94\" y=\"158.16\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(321.42857142857144 190.94 158.16)\">◬\u003c/text>\u003ctext x=\"230.19\" y=\"133.50\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(334.2857142857143 230.19 133.50)\">◊\u003c/text>\u003ctext x=\"273.94\" y=\"118.19\"\n      font-size=\"17\" font-family=\"serif\" font-weight=\"700\"\n      fill=\"#b8cfd5\" opacity=\".82\"\n      text-anchor=\"middle\" dominant-baseline=\"central\"\n      transform=\"rotate(347.14285714285717 273.94 118.19)\">⟁\u003c/text>\n    \u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#b8cfd5\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(0 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(15 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(30 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(45 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(60 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(75 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#b8cfd5\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(90 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(105 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(120 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(135 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(150 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(165 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#b8cfd5\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(180 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(195 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(210 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(225 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(240 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(255 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"114\"\n      stroke=\"#b8cfd5\" stroke-width=\"4\"\n      opacity=\"0.95\"\n      transform=\"rotate(270 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(285 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(300 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"108\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(315 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(330 320 320)\"/>\u003cline x1=\"320\" y1=\"94\" x2=\"320\" y2=\"102\"\n      stroke=\"#b8cfd5\" stroke-width=\"2\"\n      opacity=\"0.55\"\n      transform=\"rotate(345 320 320)\"/>\n\n    \u003cg opacity=\".55\">\n      \u003cpath d=\"M320,131 L338,180 L320,198 L302,180 Z\" fill=\"#b8cfd5\"/>\n      \u003cpath d=\"M509,320 L460,338 L442,320 L460,302 Z\" fill=\"#b8cfd5\"/>\n      \u003cpath d=\"M320,509 L302,460 L320,442 L338,460 Z\" fill=\"#b8cfd5\"/>\n      \u003cpath d=\"M131,320 L180,302 L198,320 L180,338 Z\" fill=\"#b8cfd5\"/>\n    \u003c/g>\n\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"68\" fill=\"#050a14\" stroke=\"#bfefff\" stroke-width=\"3\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"41\" fill=\"#3d6e8f\" opacity=\".18\"/>\n    \u003cpath d=\"M320,280 L340,320 L320,360 L300,320 Z\" fill=\"none\" stroke=\"#bfefff\" stroke-width=\"3\"/>\n    \u003ccircle cx=\"320\" cy=\"320\" r=\"10\" fill=\"#bfefff\"/>\n\n    \u003cg id=\"timeHand\">\n      \u003cline x1=\"320\" y1=\"320\" x2=\"320\" y2=\"115\"\n        stroke=\"#bfefff\" stroke-width=\"7\" stroke-linecap=\"round\"/>\n      \u003cpath d=\"M320 97 L309 123 L331 123 Z\" fill=\"#bfefff\"/>\n      \u003cline x1=\"320\" y1=\"320\" x2=\"320\" y2=\"412\"\n        stroke=\"#3d6e8f\" stroke-width=\"4\" stroke-linecap=\"round\" opacity=\".8\"/>\n      \n    \u003c/g>\n  \u003c/g>\n\n  \n  \u003cg transform=\"translate(281 320) rotate(-7) scale(1.35)\" filter=\"url(#holySwordGlow)\">\n    \u003ccircle cx=\"0\" cy=\"-162\" r=\"13\" fill=\"#eafaff\" stroke=\"#66cfff\" stroke-width=\"4\"/>\n    \u003crect x=\"-9\" y=\"-151\" width=\"18\" height=\"54\" rx=\"6\" fill=\"#111827\" stroke=\"#99dfff\" stroke-width=\"3\"/>\n    \u003cpath d=\"M-55,-96 Q0,-78 55,-96 Q45,-79 18,-75 L0,-62 L-18,-75 Q-45,-79 -55,-96Z\"\n          fill=\"#99dfff\" stroke=\"#66cfff\" stroke-width=\"2\"/>\n    \u003cpath d=\"M-16,-74 L16,-74 L12,120 L0,166 L-12,120 Z\"\n          fill=\"#dff8ff\" stroke=\"#66cfff\" stroke-width=\"3\"/>\n    \u003cpath d=\"M0,-70 L0,152\" stroke=\"#66cfff\" stroke-width=\"5\" opacity=\".92\"/>\n    \u003cpath d=\"M-5,-55 L0,-30 L5,-55 L0,-5 Z\" fill=\"#ffffff\" opacity=\".85\"/>\n  \u003c/g>\n  \u003cg transform=\"translate(359 320) rotate(7) scale(1.35)\" filter=\"url(#darkSwordGlow)\">\n    \u003ccircle cx=\"0\" cy=\"-162\" r=\"13\" fill=\"#35070f\" stroke=\"#ff334f\" stroke-width=\"4\"/>\n    \u003crect x=\"-9\" y=\"-151\" width=\"18\" height=\"54\" rx=\"6\" fill=\"#111827\" stroke=\"#71111f\" stroke-width=\"3\"/>\n    \u003cpath d=\"M-55,-96 Q0,-78 55,-96 Q45,-79 18,-75 L0,-62 L-18,-75 Q-45,-79 -55,-96Z\"\n          fill=\"#71111f\" stroke=\"#ff334f\" stroke-width=\"2\"/>\n    \u003cpath d=\"M-16,-74 L16,-74 L12,120 L0,166 L-12,120 Z\"\n          fill=\"#1b0b12\" stroke=\"#ff334f\" stroke-width=\"3\"/>\n    \u003cpath d=\"M0,-70 L0,152\" stroke=\"#ff334f\" stroke-width=\"5\" opacity=\".92\"/>\n    \u003cpath d=\"M0,-48 L-4,-22 L5,2 L-3,35 L5,68 L-2,102\"\n               fill=\"none\" stroke=\"#ff334f\" stroke-width=\"4\" stroke-linecap=\"round\"/>\n  \u003c/g>\n\u003c/svg>","color":"#EF4444","musicMode":"silent"}];
+  const TRANSITIONS = [{"sound":"speech","speech":{"text":"主題歌","rate":1.9,"pitch":0.7,"volume":1}},{"sound":"speech","speech":{"text":"音声オフ","rate":1.9,"pitch":0.4,"volume":1}},{"sound":"speech","speech":{"text":"環境音","rate":1.5,"pitch":0.6,"volume":1}}];
+  const EFFECT = "flash";
+  const THEME_FORMAT = "mp3";
+  const LINK_MODE = true;
+  const queryParams = new URLSearchParams(window.location.search);
+  const linkCardTitle = queryParams.get("title") || "作品";
+  const requestedMusicBase = queryParams.get("musicBase") || "./music/";
+
+  function musicPath(filename) {
+    const base = requestedMusicBase.endsWith("/")
+      ? requestedMusicBase
+      : requestedMusicBase + "/";
+    return base + filename;
+  }
+
+  let currentState = 0;
+  let managedAudio = null;
+  let toastTimer = null;
+  let sharedAudioContext = null;
+  let themeLoopTimer = null;
+  let musicSessionId = 0;
+
+  const button = document.getElementById("plip-core-button");
+  const stage = document.getElementById("plip-stage");
+  const toast = document.getElementById("plip-toast");
+
+  function showToast(message) {
+    toast.textContent = message;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 2600);
+  }
+
+  function stopMediaInDocument(targetDocument) {
+    try {
+      targetDocument.querySelectorAll("audio, video").forEach(media => {
+        try {
+          media.pause();
+          media.currentTime = 0;
+        } catch (_) {}
+      });
+
+      targetDocument.querySelectorAll("[data-plip-managed-audio='true']")
+        .forEach(element => element.remove());
+
+      targetDocument.querySelectorAll("iframe").forEach(frame => {
+        try {
+          frame.contentWindow.postMessage({ type: "PLIP_STOP_AUDIO" }, "*");
+        } catch (_) {}
+      });
+    } catch (_) {}
+  }
+
+  function stopManagedMusic() {
+    musicSessionId += 1;
+
+    if (themeLoopTimer) {
+      clearTimeout(themeLoopTimer);
+      themeLoopTimer = null;
+    }
+
+    if (managedAudio) {
+      try { managedAudio.pause(); } catch (_) {}
+      managedAudio.remove();
+      managedAudio = null;
+    }
+
+    stopMediaInDocument(document);
+
+    try {
+      if (window.parent && window.parent !== window) {
+        stopMediaInDocument(window.parent.document);
+      }
+    } catch (_) {}
+  }
+
+  function getAudioContext() {
+    const AudioContextClass =
+      window.AudioContext || window.webkitAudioContext;
+
+    if (!AudioContextClass) return null;
+
+    if (!sharedAudioContext || sharedAudioContext.state === "closed") {
+      sharedAudioContext = new AudioContextClass();
+    }
+    return sharedAudioContext;
+  }
+
+  function tone(context, frequency, start, duration,
+                type = "sine", volume = .1) {
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, start);
+    gain.gain.setValueAtTime(volume, start);
+    gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start(start);
+    oscillator.stop(start + duration);
+  }
+
+  function playClickSound(setting) {
+    if (setting.sound === "none") return;
+
+    if (setting.sound === "speech") {
+      if (!("speechSynthesis" in window)) return;
+
+      const utterance = new SpeechSynthesisUtterance(setting.speech.text);
+      utterance.lang = "ja-JP";
+      utterance.rate = setting.speech.rate;
+      utterance.pitch = setting.speech.pitch;
+      utterance.volume = setting.speech.volume;
+      speechSynthesis.speak(utterance);
+      return;
+    }
+
+    const context = getAudioContext();
+    if (!context) return;
+
+    if (context.state === "suspended") {
+      context.resume();
+    }
+
+    const time = context.currentTime;
+
+    if (setting.sound === "click") {
+      tone(context, 850, time, .035, "sine", .12);
+    } else if (setting.sound === "digital") {
+      tone(context, 620, time, .07, "square", .08);
+      tone(context, 980, time + .07, .09, "square", .07);
+    } else if (setting.sound === "confirm") {
+      tone(context, 523.25, time, .10, "sine", .10);
+      tone(context, 783.99, time + .09, .16, "sine", .10);
+    } else if (setting.sound === "metallic") {
+      tone(context, 1300, time, .07, "triangle", .07);
+      tone(context, 1780, time + .018, .11, "triangle", .05);
+    } else if (setting.sound === "impact") {
+      tone(context, 120, time, .16, "sine", .18);
+      tone(context, 65, time + .03, .22, "triangle", .09);
+    } else if (setting.sound === "sparkle") {
+      [880, 1174, 1568, 2093].forEach((frequency, index) => {
+        tone(context, frequency, time + index * .055,
+             .16, "sine", .06);
+      });
+    }
+  }
+
+  function runEffect() {
+    if (EFFECT === "none") return;
+
+    const className = "effect-" + EFFECT;
+    button.classList.remove(className);
+    void button.offsetWidth;
+    button.classList.add(className);
+    button.addEventListener("animationend", () => {
+      button.classList.remove(className);
+    }, { once: true });
+  }
+
+  function createManagedAudio(source, loop = false) {
+    const audio = document.createElement("audio");
+    audio.src = source;
+    audio.loop = loop;
+    audio.volume = .35;
+    audio.preload = "auto";
+    audio.dataset.plipManagedAudio = "true";
+    audio.style.display = "none";
+    document.body.appendChild(audio);
+    managedAudio = audio;
+    return audio;
+  }
+
+  function randomChoice(items) {
+    return items[Math.floor(Math.random() * items.length)];
+  }
+
+  async function playSourceWithFallback(primarySource, fallbackSource, options = {}) {
+    const sessionId = options.sessionId;
+    const loop = Boolean(options.loop);
+    const onEnded = options.onEnded;
+
+    async function attempt(source, isFallback) {
+      if (sessionId !== musicSessionId) return false;
+
+      const audio = createManagedAudio(source, loop);
+
+      if (typeof onEnded === "function") {
+        audio.addEventListener("ended", () => {
+          if (sessionId !== musicSessionId) return;
+          onEnded();
+        }, { once: true });
+      }
+
+      try {
+        await audio.play();
+
+        if (LINK_MODE && currentState === 1) {
+          window.parent.postMessage({
+            type: "PLIP_TRACK_PLAYING",
+            title: encodeURIComponent(linkCardTitle),
+            trackUrl: audio.currentSrc || audio.src || source
+          }, "*");
+        }
+
+        return true;
+      } catch (_) {
+        if (managedAudio === audio) {
+          audio.remove();
+          managedAudio = null;
+        }
+
+        if (!isFallback && primarySource !== fallbackSource) {
+          return attempt(fallbackSource, true);
+        }
+        return false;
+      }
+    }
+
+    return attempt(primarySource, false);
+  }
+
+  async function playMusicForState(state) {
+    const sessionId = musicSessionId;
+
+    if (state.musicMode === "silent") {
+      showToast("🔇 音楽をオフにしました");
+      return;
+    }
+
+    if (state.musicMode === "ambient") {
+      const chosen = randomChoice([
+        musicPath("bgm.mp3"),
+        musicPath("bgm1.mp3")
+      ]);
+
+      const played = await playSourceWithFallback(
+        chosen,
+        musicPath("bgm.mp3"),
+        { loop: true, sessionId }
+      );
+
+      if (sessionId !== musicSessionId) return;
+      showToast(played
+        ? "🌿 BGMを再生：" + chosen.split("/").pop()
+        : "⚠️ BGMを再生できません");
+      return;
+    }
+
+    const themeSources = [
+      musicPath("song." + THEME_FORMAT),
+      musicPath("song1." + THEME_FORMAT),
+      musicPath("song2." + THEME_FORMAT),
+      musicPath("song3." + THEME_FORMAT),
+      musicPath("song4." + THEME_FORMAT)
+    ];
+
+    const playNextTheme = async () => {
+      if (sessionId !== musicSessionId || currentState !== 1) return;
+
+      const chosen = randomChoice(themeSources);
+      const played = await playSourceWithFallback(
+        chosen,
+        musicPath("song." + THEME_FORMAT),
+        {
+          loop: false,
+          sessionId,
+          onEnded: () => {
+            if (sessionId !== musicSessionId || currentState !== 1) return;
+            themeLoopTimer = setTimeout(() => {
+              themeLoopTimer = null;
+              playNextTheme();
+            }, 3000);
+          }
+        }
+      );
+
+      if (sessionId !== musicSessionId || currentState !== 1) return;
+      showToast(played
+        ? "🎵 主題歌を再生：" + chosen.split("/").pop()
+        : "⚠️ 主題歌を再生できません");
+    };
+
+    await playNextTheme();
+  }
+
+  async function applyState(withSound = true, transitionIndex = 0) {
+    const state = STATES[currentState];
+
+    stage.innerHTML = state.svg;
+    button.style.borderColor = state.color;
+    button.style.boxShadow =
+      "0 0 28px " + state.color +
+      "55, 0 18px 45px rgba(0,0,0,.5)";
+
+    runEffect();
+
+    if (withSound) {
+      stopManagedMusic();
+      playClickSound(TRANSITIONS[transitionIndex]);
+      await playMusicForState(state);
+    }
+  }
+
+  button.addEventListener("click", () => {
+    const transitionIndex = currentState;
+    currentState = (currentState + 1) % STATES.length;
+    applyState(true, transitionIndex);
+
+    if (LINK_MODE && window.parent && window.parent !== window) {
+      window.parent.postMessage({
+        type: "PLIP_BUTTON_CLICK",
+        title: encodeURIComponent(linkCardTitle),
+        stateValue: currentState
+      }, "*");
+    }
+  });
+
+  window.addEventListener("message", event => {
+    if (event.data && event.data.type === "PLIP_STOP_AUDIO") {
+      stopManagedMusic();
+    }
+  });
+
+  applyState(false, 0);
+})();
+</script>
+</body>
+</html>
