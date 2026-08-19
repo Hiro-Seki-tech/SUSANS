@@ -1052,7 +1052,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
             <div id="my-launcher-card">
                 <header class="my-plip-header">
                     <div class="my-symbol-wrap">
-                        <iframe src="SUSANS_button.html?title=MY%20SUSANS&amp;musicBase=./music/" title="SUSANS PLIPシンボル" scrolling="no" sandbox="allow-scripts"></iframe>
+                        <iframe src="SUSANS_button.html?title=MY%20SUSANS&amp;musicBase=/music/" title="SUSANS PLIPシンボル" scrolling="no" sandbox="allow-scripts"></iframe>
                     </div>
                     <div class="my-brand">
                         <h1>MY SUSANS</h1>
@@ -1126,7 +1126,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
 
                 <footer class="my-plip-footer">
                     <div>© 2026 PLIP &amp; Hiro-Seki-Tech &amp; AI Crew</div>
-                    <div class="my-footer-row"><span>Version 0.7.12</span><span>｜</span><span>2026.08.19</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
+                    <div class="my-footer-row"><span>Version 0.7.14</span><span>｜</span><span>2026.08.20</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
                 </footer>
 
                 <dialog id="my-help-dialog">
@@ -1165,6 +1165,8 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                 <dialog id="my-trajectory-dialog">
                     <div id="my-trajectory-inner">
                         <h2>📜 SUSANSの軌跡</h2>
+                        <div class="my-history-entry"><h3>Version 0.7.14　2026.08.20</h3><p>「タイトルへ戻る」後、「ゲームZIPを直接読み込む」も初回表示と同じく再び使用できるよう修正。</p></div>
+                        <div class="my-history-entry"><h3>Version 0.7.13　2026.08.20</h3><p>ゲームから「タイトルへ戻る」後、ゲーム一覧を初期状態へ再構成し、再選択してもう一度STARTできるよう修正。</p></div>
                         <div class="my-history-entry"><h3>Version 0.7.12　2026.08.19</h3><p>公開版と見分けやすいMY専用シンボル表現を反映。タイトル上部に再生中の曲名表示を追加し、将来のSUSANS小説（books/index.html）へつながる入口を準備。</p></div>
                         <div class="my-history-entry"><h3>Version 0.7.11　2026.08.16</h3><p>登録済みゲームメニューを維持したまま、PC上のDante98 / Dante98II ZIPを直接読み込んで起動できる機能を追加。</p></div>
                         <div class="my-history-entry"><h3>Version 0.7.10　2026.08.16</h3><p>大画面のタイトル領域を約70％幅へ調整し、左右の重要要素を見渡しやすくした。</p></div>
@@ -1179,6 +1181,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <div class="my-history-entry"><h3>Version 0.7.1　2026.08.13</h3><p>PLIPシンボルの吹き出し表示を復元。シンボル本体の大きさを保ったまま、吹き出し用の表示領域を追加。</p></div>
                         <div class="my-history-entry"><h3>Version 0.7　2026.08.13</h3><p>MY SUSANSをPLIP作品として再構成開始。現代版タイトル画面、SUSANSシンボル、ゲーム選択→START導線を統合。</p></div>
                         <div class="my-history-entry"><h3>Version 0.6　2026.08</h3><p>Dante98 / Dante98IIの自動判定、編集環境起動、テストプレイ、編集済みZIP書き出しを統合し、復刻・保守の中核技術を確立。</p></div>
+                        <div class="my-history-entry"><h3>199X年　SUSANS誕生</h3><p>Dante98によりRPG「SUSANS」誕生。すべてはここから始まった。</p></div>
                         <button id="my-trajectory-close" type="button">閉じる</button>
                     </div>
                 </dialog>
