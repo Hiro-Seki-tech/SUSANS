@@ -434,6 +434,7 @@ body.panel-hidden #stage-max::before { content: "◂"; }  /* パネルが左へ�
 
 /* 入力バーの歯車 (設定パネルの入口)。#ime-toggle と同じダークトーン。パネル最大化中も #stage 内なので残る。 */
 #settings-toggle {
+    display: none !important; /* Public SUSANS: QuuBee設定入口は非表示。内部機能は保持 */
     flex: 0 0 auto; width: 34px; height: 30px; cursor: pointer; line-height: 1; margin-left: auto;
     background: var(--iconbtn-bg); color: var(--iconbtn-fg); border: 1px solid var(--iconbtn-border); border-radius: 5px; font-size: 16px;
 }
@@ -907,6 +908,109 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
     margin-right:auto !important;
   }
 }
+
+
+/* SUSANS Project 9 / smartphone controller
+ * PCでは非表示。タッチ端末ではゲーム画面下に最小限の仮想コントローラーを表示する。
+ * QuuBeeの既存PC-98 keyDown/keyUp経路へ直接つなぐため、KeyboardEventの疑似生成は行わない。 */
+#susans-touch-pad {
+    display: none;
+    flex: 0 0 auto;
+    padding: 8px max(10px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    background: #0d1117;
+    border-top: 1px solid #2b3440;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+#susans-touch-pad[hidden] { display: none !important; }
+#susans-touch-pad .touch-pad-inner {
+    width: min(100%, 620px);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+}
+#susans-touch-pad .touch-dpad {
+    flex: 0 0 174px;
+    display: grid;
+    grid-template-columns: repeat(3, 54px);
+    grid-template-rows: repeat(3, 54px);
+    gap: 6px;
+}
+#susans-touch-pad .touch-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+#susans-touch-pad button {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid #64748b;
+    background: linear-gradient(#273449, #172033);
+    color: #f8fafc;
+    font: 800 20px/1 ui-sans-serif, system-ui, sans-serif;
+    border-radius: 12px;
+    min-width: 54px;
+    min-height: 54px;
+    box-shadow: inset 0 1px rgba(255,255,255,.12), 0 2px 5px rgba(0,0,0,.35);
+    touch-action: none;
+}
+#susans-touch-pad button.is-pressed {
+    transform: translateY(1px) scale(.97);
+    background: linear-gradient(#415878, #24334d);
+    border-color: #a8c5ea;
+}
+#susans-touch-pad .touch-up    { grid-column: 2; grid-row: 1; }
+#susans-touch-pad .touch-left  { grid-column: 1; grid-row: 2; }
+#susans-touch-pad .touch-down  { grid-column: 2; grid-row: 2; }
+#susans-touch-pad .touch-right { grid-column: 3; grid-row: 2; }
+#susans-touch-pad .touch-action {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    font-size: 14px;
+    letter-spacing: .02em;
+}
+#susans-touch-pad .touch-ok {
+    background: linear-gradient(#376a55, #214536);
+    border-color: #6fa98e;
+}
+#susans-touch-pad .touch-cancel {
+    background: linear-gradient(#6c434b, #472b31);
+    border-color: #aa737d;
+}
+@media (hover: none) and (pointer: coarse), (max-width: 760px) {
+    body.my-susans-mode #susans-touch-pad { display: block; }
+    body.my-susans-mode #input-bar { display: none; }
+    #susans-touch-pad .touch-pad-inner { gap: 14px; }
+}
+@media (max-width: 430px) {
+    #susans-touch-pad { padding-top: 6px; }
+    #susans-touch-pad .touch-dpad {
+        flex-basis: 144px;
+        grid-template-columns: repeat(3, 44px);
+        grid-template-rows: repeat(3, 44px);
+        gap: 6px;
+    }
+    #susans-touch-pad button { min-width: 44px; min-height: 44px; border-radius: 10px; font-size: 18px; }
+    #susans-touch-pad .touch-actions { gap: 9px; }
+    #susans-touch-pad .touch-action { width: 64px; height: 64px; font-size: 12px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+    #susans-touch-pad { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+    #susans-touch-pad .touch-dpad {
+        flex-basis: 126px;
+        grid-template-columns: repeat(3, 38px);
+        grid-template-rows: repeat(3, 38px);
+        gap: 4px;
+    }
+    #susans-touch-pad button { min-width: 38px; min-height: 38px; font-size: 17px; }
+    #susans-touch-pad .touch-action { width: 58px; height: 58px; font-size: 11px; }
+}
+
 </style>
 <script>
 /* ライトモード先読み (FOUC 防止)。localStorage の theme だけを bridge.js ロード前に <html> へ反映する。
@@ -980,7 +1084,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
 
                 <footer class="my-plip-footer">
                     <div>© 2026 PLIP &amp; Hiro-Seki-Tech &amp; AI Crew</div>
-                    <div class="my-footer-row"><span>Public Version 0.5.4</span><span>｜</span><span>2026.08.20</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
+                    <div class="my-footer-row"><span>Public Version 0.6.0</span><span>｜</span><span>2026.08.21</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
                 </footer>
 
                 <dialog id="my-help-dialog">
@@ -995,6 +1099,8 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                             <li>ゲーム内でセーブすると、セーブデータはブラウザにも自動保存されます。</li>
                             <li>次回起動時はブラウザ保存から自動復元され、ゲーム内の「ロード」から続けられます。</li>
                         </ol>
+                        <h3>スマートフォン／タブレットで遊ぶ</h3>
+                        <p>タッチ操作の端末では、ゲーム起動後に画面下へSUSANS用の仮想コントローラーが表示されます。方向ボタンで移動し、「決定」「キャンセル」でゲームを操作できます。方向ボタンは押し続けると連続移動できます。</p>
                         <h3>セーブデータのバックアップ</h3>
                         <p>ゲーム起動後、画面下の「💾 セーブデータを書き出す」で4つのセーブスロットを <code>SUSANS_Save.zip</code> にまとめて保存できます。</p>
                         <p>別のPCやブラウザで続ける場合は「📂 セーブデータを読み込む」から、そのZIPを選択してください。ZIPを解凍する必要はありません。</p>
@@ -1010,6 +1116,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <h2>📜 SUSANSの軌跡</h2>
                         <!-- LINK HP互換：COSMOで実動作確認済みの軌跡構造 -->
                         <div id="cosmo-history-modal">
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.6.0<time datetime="2026-08-21">2026.08.21</time></h3><ul><li>スマートフォン／タブレット用の仮想コントローラーを実装し、SUSANSをタッチ操作でプレイできるようにした。</li><li>公開版ではQuuBeeの設定ボタンを非表示とし、プレイ専用画面として整理。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.5.4<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>タイトル画面のPLIPシンボルを新しいLINK対応ボタンへ更新。</li><li>音楽参照を <code>./music/</code> に統一し、ローカル環境とGitHub Pagesの両方で正しい音楽フォルダを参照するよう修正。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.5.4<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>SUSANSの軌跡を、復活プロジェクト開始から現在までの大きな節目が分かる作品史として再構成。</li><li>LINK HPのWhat's New互換を維持し、公開版の開発途中表記を整理。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">SUSANS ＆ Dante98 Reviver<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>SUSANSとDante98 Reviverを二本柱とする公開ページを構築。</li><li>「SUSANSを遊ぶ」と「あの頃のDante98作品を現代へ蘇らせる」が、一つの場所につながった。</li></ul></section>
@@ -1033,6 +1140,20 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
             <div id="progress-toast" hidden>
                 <div id="pt-label"></div>
                 <div id="pt-track"><div id="pt-fill"></div></div>
+            </div>
+        </div>
+        <div id="susans-touch-pad" aria-label="SUSANS smartphone controller" hidden>
+            <div class="touch-pad-inner">
+                <div class="touch-dpad" aria-label="direction buttons">
+                    <button class="touch-up" type="button" data-pc98-key="ArrowUp" aria-label="上">▲</button>
+                    <button class="touch-left" type="button" data-pc98-key="ArrowLeft" aria-label="左">◀</button>
+                    <button class="touch-down" type="button" data-pc98-key="ArrowDown" aria-label="下">▼</button>
+                    <button class="touch-right" type="button" data-pc98-key="ArrowRight" aria-label="右">▶</button>
+                </div>
+                <div class="touch-actions" aria-label="action buttons">
+                    <button class="touch-action touch-cancel" type="button" data-pc98-key="Escape">キャンセル</button>
+                    <button class="touch-action touch-ok" type="button" data-pc98-key="Enter">決定</button>
+                </div>
             </div>
         </div>
         <div id="input-bar">
