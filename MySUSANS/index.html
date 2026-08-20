@@ -1039,6 +1039,109 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
     .my-books-note { display: none; }
 }
 
+
+/* SUSANS Project 9 / smartphone controller
+ * PCでは非表示。タッチ端末ではゲーム画面下に最小限の仮想コントローラーを表示する。
+ * QuuBeeの既存PC-98 keyDown/keyUp経路へ直接つなぐため、KeyboardEventの疑似生成は行わない。 */
+#susans-touch-pad {
+    display: none;
+    flex: 0 0 auto;
+    padding: 8px max(10px, env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+    background: #0d1117;
+    border-top: 1px solid #2b3440;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+}
+#susans-touch-pad[hidden] { display: none !important; }
+#susans-touch-pad .touch-pad-inner {
+    width: min(100%, 620px);
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 22px;
+}
+#susans-touch-pad .touch-dpad {
+    flex: 0 0 174px;
+    display: grid;
+    grid-template-columns: repeat(3, 54px);
+    grid-template-rows: repeat(3, 54px);
+    gap: 6px;
+}
+#susans-touch-pad .touch-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+#susans-touch-pad button {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid #64748b;
+    background: linear-gradient(#273449, #172033);
+    color: #f8fafc;
+    font: 800 20px/1 ui-sans-serif, system-ui, sans-serif;
+    border-radius: 12px;
+    min-width: 54px;
+    min-height: 54px;
+    box-shadow: inset 0 1px rgba(255,255,255,.12), 0 2px 5px rgba(0,0,0,.35);
+    touch-action: none;
+}
+#susans-touch-pad button.is-pressed {
+    transform: translateY(1px) scale(.97);
+    background: linear-gradient(#415878, #24334d);
+    border-color: #a8c5ea;
+}
+#susans-touch-pad .touch-up    { grid-column: 2; grid-row: 1; }
+#susans-touch-pad .touch-left  { grid-column: 1; grid-row: 2; }
+#susans-touch-pad .touch-down  { grid-column: 2; grid-row: 2; }
+#susans-touch-pad .touch-right { grid-column: 3; grid-row: 2; }
+#susans-touch-pad .touch-action {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    font-size: 14px;
+    letter-spacing: .02em;
+}
+#susans-touch-pad .touch-ok {
+    background: linear-gradient(#376a55, #214536);
+    border-color: #6fa98e;
+}
+#susans-touch-pad .touch-cancel {
+    background: linear-gradient(#6c434b, #472b31);
+    border-color: #aa737d;
+}
+@media (hover: none) and (pointer: coarse), (max-width: 760px) {
+    body.my-susans-mode #susans-touch-pad { display: block; }
+    body.my-susans-mode #input-bar { display: none; }
+    #susans-touch-pad .touch-pad-inner { gap: 14px; }
+}
+@media (max-width: 430px) {
+    #susans-touch-pad { padding-top: 6px; }
+    #susans-touch-pad .touch-dpad {
+        flex-basis: 144px;
+        grid-template-columns: repeat(3, 44px);
+        grid-template-rows: repeat(3, 44px);
+        gap: 6px;
+    }
+    #susans-touch-pad button { min-width: 44px; min-height: 44px; border-radius: 10px; font-size: 18px; }
+    #susans-touch-pad .touch-actions { gap: 9px; }
+    #susans-touch-pad .touch-action { width: 64px; height: 64px; font-size: 12px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+    #susans-touch-pad { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+    #susans-touch-pad .touch-dpad {
+        flex-basis: 126px;
+        grid-template-columns: repeat(3, 38px);
+        grid-template-rows: repeat(3, 38px);
+        gap: 4px;
+    }
+    #susans-touch-pad button { min-width: 38px; min-height: 38px; font-size: 17px; }
+    #susans-touch-pad .touch-action { width: 58px; height: 58px; font-size: 11px; }
+}
+
+
 </style>
 <script>
 /* ライトモード先読み (FOUC 防止)。localStorage の theme だけを bridge.js ロード前に <html> へ反映する。
@@ -1128,7 +1231,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
 
                 <footer class="my-plip-footer">
                     <div>© 2026 PLIP &amp; Hiro-Seki-Tech &amp; AI Crew</div>
-                    <div class="my-footer-row"><span>Version 0.7.17</span><span>｜</span><span>2026.08.20</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
+                    <div class="my-footer-row"><span>Version 0.7.18</span><span>｜</span><span>2026.08.21</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
                 </footer>
 
                 <dialog id="my-help-dialog">
@@ -1192,6 +1295,20 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
             <div id="progress-toast" hidden>
                 <div id="pt-label"></div>
                 <div id="pt-track"><div id="pt-fill"></div></div>
+            </div>
+        </div>
+        <div id="susans-touch-pad" aria-label="SUSANS smartphone controller" hidden>
+            <div class="touch-pad-inner">
+                <div class="touch-dpad" aria-label="direction buttons">
+                    <button class="touch-up" type="button" data-pc98-key="ArrowUp" aria-label="上">▲</button>
+                    <button class="touch-left" type="button" data-pc98-key="ArrowLeft" aria-label="左">◀</button>
+                    <button class="touch-down" type="button" data-pc98-key="ArrowDown" aria-label="下">▼</button>
+                    <button class="touch-right" type="button" data-pc98-key="ArrowRight" aria-label="右">▶</button>
+                </div>
+                <div class="touch-actions" aria-label="action buttons">
+                    <button class="touch-action touch-cancel" type="button" data-pc98-key="Escape">キャンセル</button>
+                    <button class="touch-action touch-ok" type="button" data-pc98-key="Enter">決定</button>
+                </div>
             </div>
         </div>
         <div id="input-bar">
