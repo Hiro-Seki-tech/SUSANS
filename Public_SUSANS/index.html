@@ -709,6 +709,8 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
 .my-history-entry:first-of-type { border-top:0; padding-top:0; }
 .my-history-entry h3 { margin:0 0 5px; color:#cdeaff; font-size:15px; }
 .my-history-entry p { margin:0; color:#b5c6d7; }
+.my-history-entry ul { margin:0; padding:0; list-style:none; color:#b5c6d7; }
+.my-history-entry .cosmo-history-version time { margin-left:.45em; color:#9fc7e8; font-weight:600; }
 #my-susans-bar {
     background: linear-gradient(180deg,#0b1727,#07111f); border-top:1px solid #263d54;
     color:#d5e8f7; padding:8px 10px; gap:8px;
@@ -978,7 +980,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
 
                 <footer class="my-plip-footer">
                     <div>© 2026 PLIP &amp; Hiro-Seki-Tech &amp; AI Crew</div>
-                    <div class="my-footer-row"><span>Public Version 0.5.1 Candidate</span><span>｜</span><span>2026.08.20</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
+                    <div class="my-footer-row"><span>Public Version 0.5.2 Candidate</span><span>｜</span><span>2026.08.20</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
                 </footer>
 
                 <dialog id="my-help-dialog">
@@ -1006,23 +1008,27 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                 <dialog id="my-trajectory-dialog">
                     <div id="my-trajectory-inner">
                         <h2>📜 SUSANSの軌跡</h2>
-                        <div class="my-history-entry"><h3>Public Version 0.5.1 Candidate　2026.08.20</h3><p>ゲームから「タイトルへ戻る」後、ランチャーを初期状態へ再構成し、再度STARTしてSUSANSを遊べるよう修正。</p></div>
-                        <div class="my-history-entry"><h3>Public Version 0.5 Candidate　2026.08.19</h3><p>公開ページを「SUSANS ＆ Dante98 Reviver」へ拡張。SUSANSを遊ぶ入口と並んで、Reviverをブラウザで使う／ZIPで持ち帰る二つの入口を追加。</p></div>
-                        <div class="my-history-entry"><h3>Public Version 0.4.2 Candidate　2026.08.16</h3><p>通常のゲーム内セーブがブラウザへ自動保存される仕様を分かりやすくするため、「今すぐブラウザ保存」ボタンを廃止。バックアップの書き出し・読み込み・消去機能は維持。</p></div>
-                        <div class="my-history-entry"><h3>Public Version 0.4.1 Candidate　2026.08.16</h3><p>ゲーム終了後の「タイトルへ戻る」を公開版タイトルに対応。戻る直前に最新セーブをブラウザへ保存し、安全にゲーム画面を終了できるよう修正。</p></div>
-                        <div class="my-history-entry"><h3>Public Version 0.4 Candidate　2026.08.16</h3><p>現代版タイトル演出と公開版セーブ機構を統合。START時の音楽停止、ブラウザ自動セーブ／復元、セーブZIPの書き出し・読み込みを一つの公開導線へまとめた。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.9　2026.08.16</h3><p>大画面でタイトル画面の左右に余白を設け、全景を見渡しやすい約80％幅表示へ調整。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.8　2026.08.16</h3><p>タイトル画面の稲妻と聖剣サルヴァドゥの発光演出を強化。元画像は変更せず、光の変化をより明確に感じられるよう調整。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.7　2026.08.15</h3><p>ゲームSTART時にタイトル画面のBGM／主題歌を自動停止し、Dante98本編のゲーム音と重ならないよう改善。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.6　2026.08.15</h3><p>聖剣サルヴァドゥの発光を強化し、光の脈動を明確に視認できるよう調整。リンク／使い方ボタンをPLIP共通UIへ統一。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.5　2026.08.15</h3><p>最新タイトル画面へ更新。左下の大歯車に超低速の回転演出を追加し、聖剣サルヴァドゥの発光位置も新しい画面に合わせて調整。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.4　2026.08.15</h3><p>現代版タイトル画面を更新し、聖剣サルヴァドゥの青白い光が静かに脈動する演出を追加。稲妻演出はv0.7.3のまま維持。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.3　2026.08.15</h3><p>現代版タイトル画面に、雲の奥で不定期に青白く走る稲妻演出を追加。元画像を変えず、静かな画面の中に時折世界が脈動する演出とした。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.2　2026.08.15</h3><p>PLIPシンボルの取り込み方式を調整。ボタン本体を変更せず、MY SUSANS側で音楽再生時の干渉を防ぐようiframeを分離。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7.1　2026.08.13</h3><p>PLIPシンボルの吹き出し表示を復元。シンボル本体の大きさを保ったまま、吹き出し用の表示領域を追加。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.7　2026.08.13</h3><p>MY SUSANSをPLIP作品として再構成開始。現代版タイトル画面、SUSANSシンボル、ゲーム選択→START導線を統合。</p></div>
-                        <div class="my-history-entry"><h3>Version 0.6　2026.08</h3><p>Dante98 / Dante98IIの自動判定、編集環境起動、テストプレイ、編集済みZIP書き出しを統合し、復刻・保守の中核技術を確立。</p></div>
-                        <div class="my-history-entry"><h3>199X年　SUSANS誕生</h3><p>Dante98によりRPG「SUSANS」誕生。すべてはここから始まった。</p></div>
+                        <!-- LINK HP互換：COSMOで実動作確認済みの軌跡構造 -->
+                        <div id="cosmo-history-modal">
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.5.2 Candidate<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>SUSANSの軌跡をCOSMO互換のHTML構造へ整理し、LINK HPの「What's New」から最新履歴を取得できるよう対応。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.5.1 Candidate<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>ゲームから「タイトルへ戻る」後、ランチャーを初期状態へ再構成し、再度STARTしてSUSANSを遊べるよう修正。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.5 Candidate<time datetime="2026-08-19">2026.08.19</time></h3><ul><li>公開ページを「SUSANS ＆ Dante98 Reviver」へ拡張。SUSANSを遊ぶ入口と並んで、Reviverをブラウザで使う／ZIPで持ち帰る二つの入口を追加。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.4.2 Candidate<time datetime="2026-08-16">2026.08.16</time></h3><ul><li>通常のゲーム内セーブがブラウザへ自動保存される仕様を分かりやすくするため、「今すぐブラウザ保存」ボタンを廃止。バックアップの書き出し・読み込み・消去機能は維持。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.4.1 Candidate<time datetime="2026-08-16">2026.08.16</time></h3><ul><li>ゲーム終了後の「タイトルへ戻る」を公開版タイトルに対応。戻る直前に最新セーブをブラウザへ保存し、安全にゲーム画面を終了できるよう修正。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.4 Candidate<time datetime="2026-08-16">2026.08.16</time></h3><ul><li>現代版タイトル演出と公開版セーブ機構を統合。START時の音楽停止、ブラウザ自動セーブ／復元、セーブZIPの書き出し・読み込みを一つの公開導線へまとめた。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.9<time datetime="2026-08-16">2026.08.16</time></h3><ul><li>大画面でタイトル画面の左右に余白を設け、全景を見渡しやすい約80％幅表示へ調整。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.8<time datetime="2026-08-16">2026.08.16</time></h3><ul><li>タイトル画面の稲妻と聖剣サルヴァドゥの発光演出を強化。元画像は変更せず、光の変化をより明確に感じられるよう調整。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.7<time datetime="2026-08-15">2026.08.15</time></h3><ul><li>ゲームSTART時にタイトル画面のBGM／主題歌を自動停止し、Dante98本編のゲーム音と重ならないよう改善。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.6<time datetime="2026-08-15">2026.08.15</time></h3><ul><li>聖剣サルヴァドゥの発光を強化し、光の脈動を明確に視認できるよう調整。リンク／使い方ボタンをPLIP共通UIへ統一。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.5<time datetime="2026-08-15">2026.08.15</time></h3><ul><li>最新タイトル画面へ更新。左下の大歯車に超低速の回転演出を追加し、聖剣サルヴァドゥの発光位置も新しい画面に合わせて調整。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.4<time datetime="2026-08-15">2026.08.15</time></h3><ul><li>現代版タイトル画面を更新し、聖剣サルヴァドゥの青白い光が静かに脈動する演出を追加。稲妻演出はv0.7.3のまま維持。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.3<time datetime="2026-08-15">2026.08.15</time></h3><ul><li>現代版タイトル画面に、雲の奥で不定期に青白く走る稲妻演出を追加。元画像を変えず、静かな画面の中に時折世界が脈動する演出とした。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.2<time datetime="2026-08-15">2026.08.15</time></h3><ul><li>PLIPシンボルの取り込み方式を調整。ボタン本体を変更せず、MY SUSANS側で音楽再生時の干渉を防ぐようiframeを分離。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.1<time datetime="2026-08-13">2026.08.13</time></h3><ul><li>PLIPシンボルの吹き出し表示を復元。シンボル本体の大きさを保ったまま、吹き出し用の表示領域を追加。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7<time datetime="2026-08-13">2026.08.13</time></h3><ul><li>MY SUSANSをPLIP作品として再構成開始。現代版タイトル画面、SUSANSシンボル、ゲーム選択→START導線を統合。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.6<time datetime="2026-08-01">2026.08</time></h3><ul><li>Dante98 / Dante98IIの自動判定、編集環境起動、テストプレイ、編集済みZIP書き出しを統合し、復刻・保守の中核技術を確立。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">199X年　SUSANS誕生</h3><ul><li>Dante98によりRPG「SUSANS」誕生。すべてはここから始まった。</li></ul></section>
+                        </div>
                         <button id="my-trajectory-close" type="button">閉じる</button>
                     </div>
                 </dialog>
