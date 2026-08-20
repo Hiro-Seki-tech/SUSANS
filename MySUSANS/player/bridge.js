@@ -2581,6 +2581,52 @@ async function makeWorkerEmu() {
     // emu.keyDown/keyUp 経由なので local/worker どちらにも届く (旧: local の駆動ループ内で呼んでいた)。
     (function padLoop() { pollGamepads(); requestAnimationFrame(padLoop); })();
 
+    // ---- SUSANS Project 9: smartphone virtual controller ----
+    // QuuBee既存の emu.keyDown/keyUp をそのまま利用する。
+    // pointerdown から pointerup/cancel までキーを保持するため、方向ボタンの長押し移動にも対応。
+    const touchPadEl = document.getElementById('susans-touch-pad');
+    const touchPressed = new Map();   // pointerId -> { button, code }
+
+    function releaseTouchPointer(pointerId) {
+        const held = touchPressed.get(pointerId);
+        if (!held) return;
+        touchPressed.delete(pointerId);
+        held.button.classList.remove('is-pressed');
+        emu.keyUp(held.code);
+    }
+
+    function releaseAllTouchKeys() {
+        for (const pointerId of [...touchPressed.keys()]) releaseTouchPointer(pointerId);
+    }
+
+    if (touchPadEl) {
+        touchPadEl.querySelectorAll('[data-pc98-key]').forEach((button) => {
+            const codeName = button.dataset.pc98Key;
+            const code = PC98_KEYMAP[codeName];
+            if (code === undefined) return;
+
+            button.addEventListener('pointerdown', (e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                e.preventDefault();
+                // 同一pointerの取り残しを先に解放。
+                releaseTouchPointer(e.pointerId);
+                try { button.setPointerCapture(e.pointerId); } catch (_) {}
+                touchPressed.set(e.pointerId, { button, code });
+                button.classList.add('is-pressed');
+                emu.keyDown(code);
+            });
+
+            button.addEventListener('pointerup', (e) => { e.preventDefault(); releaseTouchPointer(e.pointerId); });
+            button.addEventListener('pointercancel', (e) => { releaseTouchPointer(e.pointerId); });
+            button.addEventListener('lostpointercapture', (e) => { releaseTouchPointer(e.pointerId); });
+            button.addEventListener('contextmenu', (e) => e.preventDefault());
+        });
+    }
+    window.addEventListener('blur', releaseAllTouchKeys);
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') releaseAllTouchKeys();
+    });
+
     window.addEventListener('gamepadconnected', (e) => {
         console.log(`[QuuBee] gamepad connected: ${e.gamepad.id} (mapping=${e.gamepad.mapping || 'none'})`);
     });
@@ -3503,9 +3549,13 @@ async function makeWorkerEmu() {
             myCurrentGame = null;
             document.body.classList.add('panel-hidden');
             if (myBar) myBar.hidden = true;
+            if (touchPadEl) touchPadEl.hidden = true;
+            releaseAllTouchKeys();
             if (myLauncher) myLauncher.hidden = false;
             if (myCurrentTitle) myCurrentTitle.textContent = 'MY SUSANS';
-            myLauncherMessage('ゲームを選択してください。');
+            // タイトル復帰後も初回表示と同じゲーム一覧を再構成する。
+            // STARTやゲーム選択ボタンの無効状態を残さず、再度ゲームを選んで起動できるようにする。
+            await showMyDanteLauncher();
         } catch (e) {
             console.error('MY SUSANS return failed:', e);
             mySetStatus(`タイトル復帰でエラー: ${e.message}`, 'err');
@@ -3634,6 +3684,7 @@ async function makeWorkerEmu() {
             if (myCurrentTitle) myCurrentTitle.textContent = `MY SUSANS — ${displayName} [${detectedType}]`;
             if (myLauncher) myLauncher.hidden = true;
             if (myBar) myBar.hidden = false;
+            if (touchPadEl) touchPadEl.hidden = false;
             runStatusEl.textContent = `MY SUSANS — ${detectedType} detected; starting ${launchEntry.name}…`;
             mySetStatus(`${detectedType} として認識しました。${launchEntry.name} から起動します。`, 'ok');
             runButton.click();
@@ -3684,6 +3735,10 @@ async function makeWorkerEmu() {
     }
 
     async function showMyDanteLauncher() {
+        // v0.7.14: ゲーム起動時に無効化した直接ZIP読込ボタンも、
+        // タイトル復帰時には初回表示と同じく再び利用可能に戻す。
+        if (myOpenGameZip) myOpenGameZip.disabled = false;
+
         const params = new URLSearchParams(location.search);
         if (params.get('manual') === '1') {
             if (myLauncher) myLauncher.hidden = true;
