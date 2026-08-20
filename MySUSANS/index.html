@@ -1054,7 +1054,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
             <div id="my-launcher-card">
                 <header class="my-plip-header">
                     <div class="my-symbol-wrap">
-                        <iframe src="SUSANS_button.html?title=MY%20SUSANS&amp;musicBase=/music/" title="SUSANS PLIPシンボル" scrolling="no" sandbox="allow-scripts"></iframe>
+                        <iframe src="SUSANS_button.html?title=MY%20SUSANS&amp;musicBase=./music/" title="SUSANS PLIPシンボル" scrolling="no" sandbox="allow-scripts"></iframe>
                     </div>
                     <div class="my-brand">
                         <h1>MY SUSANS</h1>
@@ -1128,7 +1128,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
 
                 <footer class="my-plip-footer">
                     <div>© 2026 PLIP &amp; Hiro-Seki-Tech &amp; AI Crew</div>
-                    <div class="my-footer-row"><span>Version 0.7.16</span><span>｜</span><span>2026.08.20</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
+                    <div class="my-footer-row"><span>Version 0.7.17</span><span>｜</span><span>2026.08.20</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
                 </footer>
 
                 <dialog id="my-help-dialog">
@@ -1169,7 +1169,8 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <h2>📜 SUSANSの軌跡</h2>
                         <!-- LINK HP互換：COSMOで実動作確認済みの軌跡構造 -->
                         <div id="cosmo-history-modal">
-                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.16<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>SUSANSの軌跡を、199X年の誕生から2026年の復活まで大きな節目中心の作品史として再構成。</li><li>LINK HPのWhat's New互換構造を維持しながら、復活プロジェクトの流れを読みやすく整理。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.17<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>タイトル画面のPLIPシンボルを新しいLINK対応ボタンへ更新。</li><li>音楽参照を <code>./music/</code> に統一し、ローカル環境とGitHub Pagesの両方で正しい音楽フォルダを参照するよう修正。</li></ul></section>
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.17<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>SUSANSの軌跡を、199X年の誕生から2026年の復活まで大きな節目中心の作品史として再構成。</li><li>LINK HPのWhat's New互換構造を維持しながら、復活プロジェクトの流れを読みやすく整理。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">SUSANS ＆ Dante98 Reviver<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>SUSANSとDante98 Reviverを二本柱とする公開ページを構築。</li><li>「SUSANSを遊ぶ」と「あの頃のDante98作品を現代へ蘇らせる」が、一つの場所につながった。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Dante98 Reviver v1.0<time datetime="2026-08-19">2026.08.19</time></h3><ul><li>Dante98／Dante98IIへの対応を整え、Dante98 Reviverがv1.0に到達。</li><li>GitHub Pages上でも動作し、Webからそのまま利用できる環境を実現。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">MY SUSANS誕生<time datetime="2026-08-16">2026.08.16</time></h3><ul><li>現代版タイトル、PLIP共通UI、BGM／主題歌、稲妻・聖剣・歯車などの演出を統合。</li><li>30年前のSUSANSと現代のSUSANS世界を結ぶ、新たな母艦が誕生。</li></ul></section>
