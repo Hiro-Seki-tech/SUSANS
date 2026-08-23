@@ -3788,7 +3788,8 @@ async function makeWorkerEmu() {
     const myHelpDialog = document.getElementById('my-help-dialog');
     const myHelpClose = document.getElementById('my-help-close');
     const myLauncherExit = document.getElementById('my-launcher-exit');
-    const myStartButton = document.getElementById('my-start-button');
+    const myStartEasy = document.getElementById('my-start-easy');
+    const myStartStandard = document.getElementById('my-start-standard');
     const myTrajectoryButton = document.getElementById('my-trajectory-button');
     const myTrajectoryDialog = document.getElementById('my-trajectory-dialog');
     const myTrajectoryClose = document.getElementById('my-trajectory-close');
@@ -3815,7 +3816,7 @@ async function makeWorkerEmu() {
             if (myLauncher) myLauncher.hidden = false;
             if (myCurrentTitle) myCurrentTitle.textContent = 'SUSANS';
             // タイトル復帰後も初回起動時と同じランチャー初期化をやり直す。
-            // bootMyDanteGame() で無効化した START を含め、games.json から安全に再構成する。
+            // bootMyDanteGame() で無効化した難易度ボタンを含め、games.json から安全に再構成する。
             await showMyDanteLauncher();
         } catch (e) {
             console.error('SUSANS public return-to-title failed:', e);
@@ -3871,7 +3872,8 @@ async function makeWorkerEmu() {
         stopMySusansTitleMusic();
         const buttons = myGameList ? myGameList.querySelectorAll('button') : [];
         buttons.forEach(btn => btn.disabled = true);
-        if (myStartButton) myStartButton.disabled = true;
+        if (myStartEasy) myStartEasy.disabled = true;
+        if (myStartStandard) myStartStandard.disabled = true;
         try {
             myLauncherMessage(`${game.name || game.file} を読み込んでいます…`);
             const res = await fetch('games/' + encodeURIComponent(game.file), { cache: 'no-store' });
@@ -3909,7 +3911,8 @@ async function makeWorkerEmu() {
             console.error('MY DANTE98 boot failed:', e);
             myLauncherMessage(`起動できません: ${e.message}`, true);
             buttons.forEach(btn => btn.disabled = false);
-            if (myStartButton) myStartButton.disabled = !mySelectedGame;
+            if (myStartEasy) myStartEasy.disabled = false;
+            if (myStartStandard) myStartStandard.disabled = false;
         }
     }
 
@@ -3927,15 +3930,21 @@ async function makeWorkerEmu() {
             if (!res.ok) throw new Error(`games.json fetch failed (${res.status})`);
             const games = await res.json();
             if (!Array.isArray(games) || !games.length) throw new Error('games.json にゲームが登録されていません');
-            const game = games.find((item) => item && typeof item.file === 'string' && item.file.toLowerCase().endsWith('.zip'));
-            if (!game) throw new Error('有効なSUSANSのZIPがgames.jsonにありません');
-            mySelectedGame = game;
+            const validGames = games.filter((item) => item && typeof item.file === 'string' && item.file.toLowerCase().endsWith('.zip'));
+            const easyGame = validGames.find((item) => item.mode === 'easy') || validGames[0];
+            const standardGame = validGames.find((item) => item.mode === 'standard') || validGames[1];
+            if (!easyGame || !standardGame) throw new Error('Easy / Standard のSUSANS ZIPがgames.jsonに揃っていません');
+            mySelectedGame = easyGame;
             if (myGameList) myGameList.replaceChildren();
-            if (myStartButton) {
-                myStartButton.disabled = false;
-                myStartButton.onclick = () => bootMyDanteGame(mySelectedGame);
+            if (myStartEasy) {
+                myStartEasy.disabled = false;
+                myStartEasy.onclick = () => { mySelectedGame = easyGame; bootMyDanteGame(easyGame); };
             }
-            myLauncherMessage('準備ができました。STARTでSUSANSを開始します。');
+            if (myStartStandard) {
+                myStartStandard.disabled = false;
+                myStartStandard.onclick = () => { mySelectedGame = standardGame; bootMyDanteGame(standardGame); };
+            }
+            myLauncherMessage('準備ができました。EASY PLAY / STANDARD PLAY を選んでSUSANSを開始します。');
         } catch (e) {
             console.error('MY DANTE98 launcher failed:', e);
             myLauncherMessage(`ゲーム一覧を読み込めません: ${e.message}`, true);
