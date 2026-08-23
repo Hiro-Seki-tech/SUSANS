@@ -1,6 +1,12 @@
 [
   {
-    "name": "SUSANS",
-    "file": "easy_PLAY_SUSANS.zip"
+    "name": "SUSANS EASY",
+    "mode": "easy",
+    "file": "new_easy_PLAY_SUSANS.zip"
+  },
+  {
+    "name": "SUSANS STANDARD",
+    "mode": "standard",
+    "file": "standard_PLAY_SUSANS.zip"
   }
 ]
