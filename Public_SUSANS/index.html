@@ -659,12 +659,12 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
 .my-game-button:hover { background: #183b5f; border-color: #6cc5ff; transform: translateY(-1px); }
 .my-game-button.is-selected { color: #07111f; background: linear-gradient(135deg,#eaf8ff,#8dd8ff); border-color: #d9f5ff; box-shadow: 0 0 18px rgba(89,190,255,.35); }
 .my-start-row { display:flex; align-items:center; justify-content:center; gap:10px; margin-top: 12px; flex-wrap:wrap; }
-#my-start-button {
+.my-start-button {
     min-width: 210px; padding: 11px 28px; border-radius: 9px; border: 1px solid #a7e0ff;
     background: linear-gradient(135deg,#2c8ec9,#8bdcff); color:#04101d; font:inherit; font-weight:900; letter-spacing:.12em; cursor:pointer;
     box-shadow: 0 0 22px rgba(77,184,246,.22);
 }
-#my-start-button:disabled { opacity:.36; cursor:not-allowed; filter:grayscale(.5); box-shadow:none; }
+.my-start-button:disabled { opacity:.36; cursor:not-allowed; filter:grayscale(.5); box-shadow:none; }
 #my-launcher-exit { margin:0; padding:10px 20px; border-radius:9px; border:1px solid #6e4e54; background:#2b171b; color:#ffd8dc; }
 #my-launcher-status { min-height:1.4em; margin-top:10px; color:#9fb3c8; font-size:12px; }
 #my-launcher-status.err { color:#ff9a9a; }
@@ -739,7 +739,7 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
     .my-reviver-panel { padding:12px; }
     #my-game-list { grid-template-columns:1fr 1fr; gap:7px; }
     .my-game-button { font-size:12px; padding:9px 8px; }
-    #my-start-button { min-width:170px; }
+    .my-start-button { min-width:170px; }
     #my-susans-bar { justify-content:center; }
     #my-susans-bar .my-title { flex:1 1 100%; text-align:center; margin-right:0; }
     #my-susans-bar button { flex:1 1 auto; }
@@ -1063,10 +1063,11 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <div class="my-launch-title">PLAY SUSANS</div>
                         <div id="my-game-list" hidden></div>
                         <div class="my-start-row">
-                            <button id="my-start-button" type="button" disabled>▶ START</button>
+                            <button id="my-start-easy" class="my-start-button" type="button" disabled>▶ EASY PLAY</button>
+                            <button id="my-start-standard" class="my-start-button" type="button" disabled>▶ STANDARD PLAY</button>
                         </div>
                         <div id="my-launcher-status" role="status" aria-live="polite">SUSANSを準備しています…</div>
-                        <p class="my-backup-note">ゲーム内でセーブするとブラウザへ自動保存され、次回起動時に自動復元されます。</p>
+                        <p class="my-backup-note">Easy / Standard はセーブデータを共有しています。ゲームの途中でも、同じセーブデータのまま難易度を変更できます。</p>
                     </section>
 
                     <aside class="my-reviver-panel" aria-label="Dante98 Reviver">
@@ -1084,16 +1085,18 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
 
                 <footer class="my-plip-footer">
                     <div>© 2026 PLIP &amp; Hiro-Seki-Tech &amp; AI Crew</div>
-                    <div class="my-footer-row"><span>Public Version 0.6.0</span><span>｜</span><span>2026.08.21</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
+                    <div class="my-footer-row"><span>Public Version 0.7.0</span><span>｜</span><span>2026.08.23</span><span>｜</span><button id="my-trajectory-button" class="my-footer-link" type="button">📜 SUSANSの軌跡</button></div>
                 </footer>
 
                 <dialog id="my-help-dialog">
                     <div id="my-help-inner">
                         <h2>SUSANS 公開版の使い方</h2>
-                        <p><strong>「▶ START」を押すと、easy版SUSANSがDante98環境で起動します。</strong></p>
+                        <p><strong>「▶ EASY PLAY」または「▶ STANDARD PLAY」を選ぶと、SUSANSがDante98環境で起動します。</strong></p>
+                        <p><strong>Easy / Standard はセーブデータを共有しています。ゲームの途中でも、同じセーブデータのまま難易度を変更できます。</strong></p>
                         <h3>遊び方</h3>
                         <ol>
-                            <li>タイトル画面で「▶ START」を押します。</li>
+                            <li>タイトル画面で「▶ EASY PLAY」または「▶ STANDARD PLAY」を選びます。</li>
+                            <li><strong>EASY PLAY</strong> は敵を弱めた遊びやすい版、<strong>STANDARD PLAY</strong> は本来のゲームバランスで遊ぶ版です。</li>
                             <li>タイトルのBGM／主題歌は自動停止し、Dante98本編のゲーム音へ切り替わります。</li>
                             <li>ゲーム内では、当時のSUSANSと同じ操作でプレイします。</li>
                             <li>ゲーム内でセーブすると、セーブデータはブラウザにも自動保存されます。</li>
@@ -1116,6 +1119,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <h2>📜 SUSANSの軌跡</h2>
                         <!-- LINK HP互換：COSMOで実動作確認済みの軌跡構造 -->
                         <div id="cosmo-history-modal">
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.7.0<time datetime="2026-08-23">2026.08.23</time></h3><ul><li>遊びやすいEASY PLAYに加え、本来のゲームバランスで遊べるSTANDARD PLAYを追加。</li><li>両モードでセーブデータを共有し、ゲーム途中でも同じセーブのまま難易度を切り替えられるようにした。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.6.0<time datetime="2026-08-21">2026.08.21</time></h3><ul><li>スマートフォン／タブレット用の仮想コントローラーを実装し、SUSANSをタッチ操作でプレイできるようにした。</li><li>公開版ではQuuBeeの設定ボタンを非表示とし、プレイ専用画面として整理。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.5.4<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>タイトル画面のPLIPシンボルを新しいLINK対応ボタンへ更新。</li><li>音楽参照を <code>./music/</code> に統一し、ローカル環境とGitHub Pagesの両方で正しい音楽フォルダを参照するよう修正。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Public Version 0.5.4<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>SUSANSの軌跡を、復活プロジェクト開始から現在までの大きな節目が分かる作品史として再構成。</li><li>LINK HPのWhat's New互換を維持し、公開版の開発途中表記を整理。</li></ul></section>
