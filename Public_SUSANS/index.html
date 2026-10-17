@@ -672,7 +672,7 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
 .my-brand-amp { color:#7dbbe8; font-weight:700; }
 .my-menu-row {
     position: relative; z-index: 2; width: min(1120px, 94%); margin: -28px auto 0;
-    display: grid; grid-template-columns: minmax(0, 2.15fr) minmax(235px, .85fr);
+    display: grid; grid-template-columns: minmax(0, 2fr) minmax(190px, .9fr) minmax(190px, .9fr);
     gap: 14px; align-items: stretch;
 }
 .my-menu-row .my-launch-panel { width:auto; margin:0; }
@@ -682,6 +682,13 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
     border:1px solid rgba(91,125,158,.42); border-radius:14px;
     box-shadow:0 16px 45px rgba(0,0,0,.42),0 0 18px rgba(88,176,255,.05); text-align:center;
 }
+.my-novel-panel { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:0; padding:18px 16px 16px; background:linear-gradient(180deg,rgba(7,17,34,.94),rgba(3,9,20,.98)); border:1px solid rgba(91,125,158,.42); border-radius:14px; box-shadow:0 16px 45px rgba(0,0,0,.42),0 0 18px rgba(88,176,255,.05); text-align:center; }
+.my-novel-icon { font-size:32px; }
+.my-novel-name { margin-top:4px; color:#dbeeff; font-size:15px; font-weight:900; }
+.my-novel-sub { margin-top:2px; color:#7893aa; font-size:9px; letter-spacing:.08em; }
+.my-novel-link { display:block; width:100%; margin-top:12px; padding:10px 9px; border:1px solid #416785; border-radius:9px; background:linear-gradient(180deg,#163653,#10243a); color:#dceefe; text-decoration:none; font-size:11px; font-weight:900; transition:.16s ease; }
+.my-novel-link:hover { background:#1c466b; border-color:#77cfff; transform:translateY(-1px); }
+.my-novel-note { margin:9px 0 0; color:#74899c; font-size:9px; line-height:1.45; }
 .my-reviver-icon { margin-top:1px; font-size:32px; }
 .my-reviver-name { margin-top:4px; color:#dbeeff; font-size:15px; font-weight:900; letter-spacing:.04em; }
 .my-reviver-sub { margin-top:2px; color:#7893aa; font-size:9px; letter-spacing:.10em; }
@@ -724,6 +731,9 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
 #my-title-return { border-color:#5c6681 !important; background:#20273d !important; color:#dfe5ff !important; }
 #my-title-return:hover { background:#2b3553 !important; }
 #my-status { color:#94abc0; }
+@media (max-width: 1100px) {
+    .my-menu-row { grid-template-columns:1fr; }
+}
 @media (max-width: 760px) {
     #my-launcher-card { padding:0 10px 14px; }
     .my-plip-header { grid-template-columns:72px 1fr; gap:10px; min-height:72px; }
@@ -1069,6 +1079,15 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <div id="my-launcher-status" role="status" aria-live="polite">SUSANSを準備しています…</div>
                         <p class="my-backup-note">Easy / Standard はセーブデータを共有しています。ゲームの途中でも、同じセーブデータのまま難易度を変更できます。</p>
                     </section>
+
+                    <aside class="my-novel-panel" aria-label="SUSANS Novel">
+                        <div class="my-launch-title">SUSANS NOVEL</div>
+                        <div class="my-novel-icon" aria-hidden="true">📖</div>
+                        <div class="my-novel-name">The World of SUSANS</div>
+                        <div class="my-novel-sub">ENGLISH NOPERA EDITION</div>
+                        <a class="my-novel-link" href="https://hiro-seki-tech.github.io/NOPERA/SUSANS/en/" target="_blank" rel="noopener noreferrer">📖 READ THE NOVEL<br>小説をNOPERAで読む</a>
+                        <p class="my-novel-note">Discover the story of SUSANS through words, illustrations, and music.</p>
+                    </aside>
 
                     <aside class="my-reviver-panel" aria-label="Dante98 Reviver">
                         <div class="my-launch-title">DANTE98 REVIVER</div>
