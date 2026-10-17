@@ -977,14 +977,15 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
     border: 1px solid #46515d;
     border-radius: 9px;
     background: linear-gradient(180deg, #26303a, #1a2129);
-    color: #8995a0;
+    color: #e5f4ff;
     text-decoration: none;
     font-size: 12px;
     font-weight: 900;
-    cursor: not-allowed;
-    opacity: .72;
-    pointer-events: none;
+    cursor: pointer;
+    opacity: 1;
+    pointer-events: auto;
 }
+.my-books-button:hover, .my-books-button:focus-visible { border-color: #84c8ff; background: linear-gradient(180deg, #284865, #17334d); box-shadow: 0 0 14px rgba(92,180,255,.18); }
 .my-books-button span {
     display: block;
     margin-top: 3px;
@@ -1217,15 +1218,11 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <div class="my-books-sub">NOVEL / STORY ARCHIVE</div>
                         <a id="my-books-link"
                            href="books/index.html"
-                           class="my-books-button is-disabled"
-                           aria-disabled="true"
-                           tabindex="-1"
-                           onclick="return false;"
-                           data-future-href="books/index.html">
+                           class="my-books-button">
                             📖 小説を読む
-                            <span>準備中</span>
+                            <span>1996 / 2026 EDITIONS</span>
                         </a>
-                        <p class="my-books-note">SUSANSの物語を読むための入口。完成後に開放します。</p>
+                        <p class="my-books-note">1996年版の原作と、2026年版の新たな物語。</p>
                     </aside>
                 </div>
 
