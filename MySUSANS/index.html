@@ -977,15 +977,14 @@ body.my-susans-mode:not(.panel-hidden) #panel { display: flex; }
     border: 1px solid #46515d;
     border-radius: 9px;
     background: linear-gradient(180deg, #26303a, #1a2129);
-    color: #e5f4ff;
+    color: #8995a0;
     text-decoration: none;
     font-size: 12px;
     font-weight: 900;
-    cursor: pointer;
-    opacity: 1;
-    pointer-events: auto;
+    cursor: not-allowed;
+    opacity: .72;
+    pointer-events: none;
 }
-.my-books-button:hover, .my-books-button:focus-visible { border-color: #84c8ff; background: linear-gradient(180deg, #284865, #17334d); box-shadow: 0 0 14px rgba(92,180,255,.18); }
 .my-books-button span {
     display: block;
     margin-top: 3px;
@@ -1218,11 +1217,15 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <div class="my-books-sub">NOVEL / STORY ARCHIVE</div>
                         <a id="my-books-link"
                            href="books/index.html"
-                           class="my-books-button">
+                           class="my-books-button is-disabled"
+                           aria-disabled="true"
+                           tabindex="-1"
+                           onclick="return false;"
+                           data-future-href="books/index.html">
                             📖 小説を読む
-                            <span>1996 / 2026 EDITIONS</span>
+                            <span>準備中</span>
                         </a>
-                        <p class="my-books-note">1996年版の原作と、2026年版の新たな物語。</p>
+                        <p class="my-books-note">SUSANSの物語を読むための入口。完成後に開放します。</p>
                     </aside>
                 </div>
 
@@ -1269,6 +1272,7 @@ try { var s = JSON.parse(localStorage.getItem('quubee_settings_v1')); if (s && s
                         <h2>📜 SUSANSの軌跡</h2>
                         <!-- LINK HP互換：COSMOで実動作確認済みの軌跡構造 -->
                         <div id="cosmo-history-modal">
+                            <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">SUSANS LIBRARY 小説登録<time datetime="2026-10-18">2026.10.18</time></h3><ul><li>MY SUSANSに「SUSANS LIBRARY」を整備し、1996年の旧作小説と2026年の新生小説を収録。</li><li>新生小説は第一部「古の時代」の第一章「神々の時代」、第二章「英雄たちの時代」、第三章「魔法の時代」を章別PDFで登録。</li><li>音楽・挿絵とともに物語を楽しめるNOPERA版への入口も設置。PDF版とあわせて読める構成に。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">主題歌10曲抽選化<time datetime="2026-09-29">2026.09.29</time></h3><ul><li>主題歌の抽選枠を10曲へ拡張し、多言語版を含むさまざまな主題歌が流れるように強化。</li><li>MY SUSANSと公開用SUSANSのLINK対応ボタンを整理し、今後の更新で混乱しにくい構成へ改善。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.17<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>タイトル画面のPLIPシンボルを新しいLINK対応ボタンへ更新。</li><li>音楽参照を <code>./music/</code> に統一し、ローカル環境とGitHub Pagesの両方で正しい音楽フォルダを参照するよう修正。</li></ul></section>
                             <section class="my-history-entry cosmo-history-entry"><h3 class="cosmo-history-version">Version 0.7.17<time datetime="2026-08-20">2026.08.20</time></h3><ul><li>SUSANSの軌跡を、199X年の誕生から2026年の復活まで大きな節目中心の作品史として再構成。</li><li>LINK HPのWhat's New互換構造を維持しながら、復活プロジェクトの流れを読みやすく整理。</li></ul></section>
